@@ -1,0 +1,35 @@
+services:
+  postgres:
+    image: postgres:16-alpine
+    environment:
+      POSTGRES_DB: meetmi
+      POSTGRES_USER: meetmi
+      POSTGRES_PASSWORD: meetmi_dev_password
+    ports:
+      - "5432:5432"
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+
+  backend:
+    build: ./backend
+    environment:
+      DATABASE_URL: postgresql+psycopg://meetmi:meetmi_dev_password@postgres:5432/meetmi
+      JWT_SECRET_KEY: local-dev-secret-change-before-production
+      CORS_ORIGINS: http://localhost:5173,http://localhost:3000
+      COOKIE_SECURE: "false"
+    ports:
+      - "8000:8000"
+    depends_on:
+      - postgres
+
+  frontend:
+    build: ./frontend
+    environment:
+      VITE_API_URL: http://localhost:8000/api
+    ports:
+      - "3000:80"
+    depends_on:
+      - backend
+
+volumes:
+  postgres_data:
