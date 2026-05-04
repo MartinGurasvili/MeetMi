@@ -1,0 +1,301 @@
+You are an expert full-stack engineer, security engineer, and DevOps engineer. Build a secure, modern AI-assisted office space booking platform for a Level 6 Software Engineering and DevOps university assessment.
+
+Use:
+- Backend: Python FastAPI
+- Frontend: React with TypeScript
+- Styling: Tailwind CSS
+- 3D/interactive UI: React Three Fiber or SVG-based interactive floor plan if simpler
+- Database: PostgreSQL for production, SQLite allowed for local development
+- ORM: SQLAlchemy 2.0
+- Authentication: JWT or secure session-based authentication
+- Testing: Pytest for backend, Vitest/React Testing Library for frontend
+- Deployment: AWS-ready using Docker
+
+Project name:
+AI-Assisted Office Space Booking Platform
+
+Core concept:
+The app allows employees to book hot desks and meeting rooms from an interactive office floor plan. Users can select a date, time, space type, capacity, and required equipment. The system recommends the best available desk or room based on availability, capacity, equipment, location, and booking conflicts.
+
+The UI should feel like Apple Maps dark mode:
+- Dark background
+- Smooth zoomable office map
+- 3D-like floor plan
+- Glowing availability markers
+- Floating side panels
+- Glassmorphism cards
+- Clean typography
+- Subtle animations
+- Premium SaaS dashboard feel
+
+Main booking types:
+1. Hot desks
+2. Meeting rooms
+
+User roles:
+1. Regular user
+   - Register and log in
+   - View interactive office floor plan
+   - Filter spaces by date, time, space type, capacity, and equipment
+   - Select a desk or room from the map
+   - Receive automatic recommendations
+   - Create a booking
+   - View, edit, and cancel their own bookings
+
+2. Admin user
+   - Manage office floors
+   - Add, edit, and delete desks and meeting rooms
+   - Set capacity, equipment, coordinates, floor number, zone, image URL, and active status
+   - Manage all bookings
+   - Override or cancel bookings
+   - View audit logs
+
+Core entities:
+- User
+- OfficeFloor
+- Space
+- Equipment
+- SpaceEquipment
+- Booking
+- AuditLog
+
+Space model:
+A Space can represent either a hot desk or a meeting room.
+
+Fields:
+- id
+- floor_id
+- name
+- type: "hot_desk" or "meeting_room"
+- zone
+- x_coordinate
+- y_coordinate
+- z_coordinate optional
+- capacity
+- description
+- image_url
+- is_active
+
+Booking model:
+- id
+- user_id
+- space_id
+- title
+- start_time
+- end_time
+- attendee_count
+- status
+- created_at
+- updated_at
+
+Recommendation logic:
+Create a backend service that recommends the best available spaces based on:
+1. Space must be active.
+2. Space must be available during the selected time.
+3. Space type must match the requested type.
+4. Capacity must be equal to or greater than attendee_count.
+5. Space must include all required equipment.
+6. Prefer the smallest suitable capacity.
+7. Prefer spaces closest to the user’s preferred zone if provided.
+8. Prefer spaces with the most matching optional equipment.
+9. Return a ranked list with score and explanation.
+
+Conflict handling:
+Prevent double booking using this overlap condition:
+existing.start_time < requested_end_time AND existing.end_time > requested_start_time
+
+Implement transaction-safe booking creation to reduce race condition risk. Use database constraints, transaction isolation, or row-level locking where possible. Add clear comments explaining how this protects against double booking.
+
+Security requirements:
+Implement protections for:
+
+1. SQL Injection
+- Use SQLAlchemy ORM or parameterised queries only.
+- Never concatenate user input into raw SQL.
+
+2. XSS
+- React should escape rendered text by default.
+- Avoid dangerouslySetInnerHTML.
+- Validate and sanitise user-generated fields.
+
+3. CSRF / Auth Security
+- If using JWT, store tokens securely and avoid unsafe localStorage patterns where possible.
+- If using cookies, use HttpOnly, Secure, SameSite cookies.
+- Protect authenticated API routes.
+
+4. Broken Access Control
+- Users can only edit/cancel their own bookings.
+- Admin-only endpoints must require admin role.
+- Prevent IDOR vulnerabilities.
+
+5. Input Validation
+- Use Pydantic schemas.
+- Validate start/end times.
+- Prevent bookings in the past.
+- Prevent negative or unrealistic attendee counts.
+- Validate equipment IDs and space IDs.
+
+6. Audit Logging
+- Log booking creation, cancellation, admin changes, and failed permission attempts.
+
+Frontend requirements:
+Build a modern React interface with:
+- Login/register pages
+- Dashboard
+- Interactive office floor plan
+- Toggle between floors
+- Filter panel
+- Space details side panel
+- Recommended space panel
+- Booking confirmation modal
+- User bookings page
+- Admin dashboard
+
+Floor plan:
+Create a demo office floor plan using SVG or React Three Fiber.
+Each space should be rendered from database coordinates.
+Use visual states:
+- Available = glowing green/blue marker
+- Booked = muted/red marker
+- Recommended = highlighted marker
+- Selected = enlarged/highlighted marker
+
+The floor plan should support:
+- Zoom
+- Pan
+- Hover tooltips
+- Click to open details
+- Responsive layout
+
+GenAI preview feature:
+Create a backend service called image_prompt_service.py.
+It should generate a GenAI image prompt from space metadata.
+
+For now, do not call a paid image generation API by default. Instead:
+- Generate a prompt string from name, type, capacity, equipment, zone, and style.
+- Store or return the prompt in admin views.
+- Allow admins to paste an image_url manually.
+- Design image_url so it can later point to AWS S3.
+- Add TODO comments showing where AWS Bedrock image generation could be integrated later.
+
+Example prompt:
+"Create a realistic premium office interior preview image for a hot desk called 'Desk A12' in the North Zone. The desk includes a monitor, docking station, ergonomic chair, and natural lighting. Apple-inspired corporate office design, dark mode visual style, realistic photography."
+
+AWS deployment:
+Prepare the app for AWS deployment.
+
+Include:
+- Dockerfile for backend
+- Dockerfile for frontend
+- docker-compose.yml for local development
+- .env.example files
+- GitHub Actions or GitLab CI pipeline
+- Production deployment notes for AWS App Runner, ECS Fargate, or Elastic Beanstalk
+- PostgreSQL via AWS RDS
+- Static assets / generated images via AWS S3
+- Secrets via AWS Secrets Manager or environment variables
+
+Suggested project structure:
+
+backend/
+  app/
+    main.py
+    config.py
+    database.py
+    models.py
+    schemas.py
+    auth.py
+    dependencies.py
+    routers/
+      auth.py
+      spaces.py
+      bookings.py
+      admin.py
+      recommendations.py
+    services/
+      recommendation_service.py
+      booking_service.py
+      image_prompt_service.py
+      audit_service.py
+    security/
+      password.py
+      permissions.py
+    tests/
+      test_booking_conflicts.py
+      test_recommendations.py
+      test_permissions.py
+  requirements.txt
+  Dockerfile
+  alembic/
+
+frontend/
+  src/
+    App.tsx
+    main.tsx
+    api/
+    components/
+      FloorPlan.tsx
+      SpaceMarker.tsx
+      FilterPanel.tsx
+      SpaceDetailsPanel.tsx
+      RecommendationPanel.tsx
+      BookingModal.tsx
+    pages/
+      LoginPage.tsx
+      DashboardPage.tsx
+      MyBookingsPage.tsx
+      AdminPage.tsx
+    styles/
+  package.json
+  Dockerfile
+
+docker-compose.yml
+README.md
+.github/workflows/ci.yml
+
+Testing requirements:
+Backend tests:
+- Booking conflict detection
+- Race-condition-safe booking logic
+- Recommendation ranking
+- User cannot edit another user’s booking
+- Admin-only endpoints
+- Invalid input rejection
+
+Frontend tests:
+- Floor plan renders spaces
+- Filters update visible spaces
+- Booking modal opens from marker
+- Recommendation panel displays best space
+
+Seed data:
+Create demo seed data for:
+- 2 office floors
+- 20 hot desks
+- 5 meeting rooms
+- Equipment types:
+  - monitor
+  - docking station
+  - standing desk
+  - whiteboard
+  - projector
+  - video conferencing
+  - speakers
+  - accessibility access
+
+Documentation:
+Generate a README explaining:
+- Project purpose
+- Features
+- Local setup
+- Docker setup
+- Environment variables
+- Database migration
+- Security protections
+- OWASP vulnerabilities mitigated
+- AWS deployment path
+- DevOps pipeline
+- Testing strategy
+
+Important:
+Prioritise secure, modular, readable, production-style code. Keep the first version achievable for a student project but polished enough to demonstrate complexity, DevOps, security, and usability. The app should look visually impressive, but the core assessment priority is secure CRUD, database design, OWASP protection, testing, and deployment evidence.
