@@ -1,5 +1,7 @@
 # MeetMi
 
+![MeetMi app icon](docs/assets/meetmi-icon.png)
+
 MeetMi is a secure AI-assisted office space booking platform for hot desks and meeting rooms. It combines a FastAPI backend, SQLAlchemy 2.0 data model, React/TypeScript frontend, interactive dark-mode floor plan, recommendation engine, audit logging, tests, Docker, and AWS-ready deployment guidance.
 
 ## Features

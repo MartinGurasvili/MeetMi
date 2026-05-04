@@ -12,6 +12,6 @@ it('renders spaces from coordinates', () => {
 it('opens selection callback from marker', async () => {
   const onSelect = vi.fn();
   render(<FloorPlan spaces={demoSpaces.slice(0, 1)} onSelectSpace={onSelect} />);
-  await userEvent.click(screen.getByLabelText('Desk A01'));
-  expect(onSelect).toHaveBeenCalledWith(expect.objectContaining({ name: 'Desk A01' }));
+  await userEvent.click(screen.getByLabelText('Desk M01'));
+  expect(onSelect).toHaveBeenCalledWith(expect.objectContaining({ name: 'Desk M01' }));
 });
