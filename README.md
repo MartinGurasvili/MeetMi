@@ -132,6 +132,6 @@ CI (`.github/workflows/ci.yml`) runs both suites on pull requests and `main`.
 
 Container images are built from `backend/Dockerfile` and `frontend/Dockerfile`. Pushes to `main` trigger `.github/workflows/deploy-aws.yml`, which publishes `meetmi-backend` and `meetmi-frontend` to Amazon ECR (repositories are created automatically when the IAM role allows it).
 
-Typical AWS layout: ECR images → App Runner or ECS Fargate, RDS PostgreSQL, Secrets Manager for `JWT_SECRET_KEY` and database credentials, optional S3/CloudFront for static assets. Configure runtime env on the backend service (`DATABASE_URL`, `CORS_ORIGINS`, `COOKIE_SECURE=true`) and set `VITE_API_URL` at **frontend image build** time in CI.
+Typical AWS layout: ECR images → App Runner or ECS Fargate, RDS PostgreSQL, Secrets Manager for `JWT_SECRET_KEY` and database credentials, optional S3/CloudFront for static assets. Configure runtime env on the backend service (`DATABASE_URL`, `CORS_ORIGINS`, `COOKIE_SECURE=true`).
 
-Deployment credentials and optional ECS rollout are configured via GitHub Actions secrets/variables; see comments in `deploy-aws.yml` for required names.
+**CI variables (optional):** If you do not have a public API URL yet, leave `VITE_API_URL` unset — the deploy workflow builds the frontend with `/api` (for same-origin reverse proxy). Set `VITE_API_URL` to your App Runner or API URL (e.g. `https://abc123.eu-west-2.awsapprunner.com/api`) when ready and redeploy. Set `SKIP_FRONTEND_DEPLOY=true` to push only the backend image. See `deploy-aws.yml` for secrets (`AWS_REGION`, `AWS_ROLE_TO_ASSUME`).
