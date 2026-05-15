@@ -5,10 +5,11 @@ import DashboardPage from './pages/DashboardPage';
 import LoginPage from './pages/LoginPage';
 import MyBookingsPage from './pages/MyBookingsPage';
 import AdminPage from './pages/AdminPage';
+import FloorPlanEditorPage from './pages/FloorPlanEditorPage';
 
 function Shell() {
   const { pathname } = useLocation();
-  const showNavbar = pathname !== '/' && pathname !== '/login';
+  const showNavbar = pathname !== '/' && pathname !== '/login' && pathname !== '/dev/floor-editor';
 
   return (
     <div className="app-frame antialiased">
@@ -18,6 +19,7 @@ function Shell() {
         <Route path="/login" element={<LoginPage />} />
         <Route path="/bookings" element={<MyBookingsPage />} />
         <Route path="/admin" element={<AdminPage />} />
+        {import.meta.env.DEV ? <Route path="/dev/floor-editor" element={<FloorPlanEditorPage />} /> : null}
         <Route path="*" element={<Navigate to="/" replace />} />
       </Routes>
     </div>

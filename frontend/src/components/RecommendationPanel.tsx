@@ -1,4 +1,4 @@
-import { type DragEvent, useRef, useState } from 'react';
+import { type DragEvent, useState } from 'react';
 import { ArrowRight, CalendarPlus, Sparkles } from 'lucide-react';
 import type { Recommendation } from '../types';
 
@@ -8,7 +8,6 @@ interface Props {
 }
 
 export default function RecommendationPanel({ recommendations, onSelect }: Props) {
-  const fileInputRef = useRef<HTMLInputElement>(null);
   const [calendarMessage, setCalendarMessage] = useState('Drag a Teams or calendar event here, or click to add one.');
 
   function handleCalendarIntent() {
@@ -37,7 +36,7 @@ export default function RecommendationPanel({ recommendations, onSelect }: Props
       <button
         type="button"
         className="dashboard-calendar-dropzone"
-        onClick={() => fileInputRef.current?.click()}
+        onClick={handleCalendarIntent}
         onDragOver={(event) => event.preventDefault()}
         onDrop={handleDrop}
       >
@@ -47,14 +46,6 @@ export default function RecommendationPanel({ recommendations, onSelect }: Props
           <small>{calendarMessage}</small>
         </span>
       </button>
-      <input
-        ref={fileInputRef}
-        className="sr-only"
-        type="file"
-        accept=".ics,.ical,text/calendar"
-        onChange={handleCalendarIntent}
-        aria-label="Choose calendar event"
-      />
 
       <div className="dashboard-recommendation-list">
         {recommendations.length === 0 ? (

@@ -154,6 +154,36 @@ Recommended production path:
 7. Store generated or manually uploaded space preview images in S3; save their HTTPS URL in `Space.image_url`.
 8. Add AWS Bedrock image generation in `image_prompt_service.py` when paid generation is approved.
 
+### GitHub Actions → Amazon ECR
+
+The workflow [.github/workflows/deploy-aws.yml](.github/workflows/deploy-aws.yml) runs on every push to `main` (and can be run manually via **Actions → Deploy to AWS (ECR) → Run workflow**).
+
+**One-time AWS setup**
+
+1. Create two ECR repositories: `meetmi-backend` and `meetmi-frontend` (same region you will use in GitHub).
+2. Enable **OIDC** for GitHub: add an IAM identity provider for `token.actions.githubusercontent.com` (audience `sts.amazonaws.com`) if you do not already have it.
+3. Create an IAM role (e.g. `github-meetmi-deploy`) with:
+   - Trust policy allowing `sts:AssumeRoleWithWebIdentity` for your repo, e.g. `repo:YOUR_ORG/MeetMi:ref:refs/heads/main` (use your org/user and repo name).
+   - Permissions to `ecr:GetAuthorizationToken`, and on both repositories `ecr:BatchCheckLayerAvailability`, `ecr:CompleteLayerUpload`, `ecr:InitiateLayerUpload`, `ecr:PutImage`, `ecr:UploadLayerPart`, plus `ecs:UpdateService` / `ecs:DescribeServices` if you use the optional ECS step.
+4. Optional: ECS cluster and services for backend/frontend; set repository **Variables** `AWS_ECS_CLUSTER`, `AWS_ECS_SERVICE_BACKEND`, `AWS_ECS_SERVICE_FRONTEND` so the workflow can call `update-service --force-new-deployment` after each push.
+
+**One-time GitHub setup**
+
+| Type | Name | Example / notes |
+|------|------|------------------|
+| Secret | `AWS_REGION` | `eu-west-1` |
+| Secret | `AWS_ROLE_TO_ASSUME` | IAM role ARN from step 3 |
+| Variable | `VITE_API_URL` | `https://api.yourdomain.com/api` (must match your deployed API URL; baked into the frontend at build time) |
+| Variable (optional) | `AWS_ECS_CLUSTER` | ECS cluster name |
+| Variable (optional) | `AWS_ECS_SERVICE_BACKEND` | Backend ECS service name |
+| Variable (optional) | `AWS_ECS_SERVICE_FRONTEND` | Frontend ECS service name |
+
+If you cannot use OIDC, replace the “Configure AWS credentials” step in the workflow with access-key based authentication (not recommended for long-lived keys); see [aws-actions/configure-aws-credentials](https://github.com/aws-actions/configure-aws-credentials).
+
+**After images are in ECR**, point App Runner, ECS task definitions, or Kubernetes manifests at `.../meetmi-backend:latest` and `.../meetmi-frontend:latest` (or the short SHA tag printed in the job). Configure the backend service with `DATABASE_URL`, `JWT_SECRET_KEY`, `CORS_ORIGINS` (your CloudFront or site URL), and `COOKIE_SECURE=true`.
+
 ## DevOps Pipeline
 
-GitHub Actions runs backend dependency install + `pytest`, then frontend install + build + Vitest. Extend the workflow with ECR login and deployment steps when AWS account details are available.
+GitHub Actions [.github/workflows/ci.yml](.github/workflows/ci.yml) runs on pull requests and pushes to `main`: backend `pytest`, then frontend `npm install`, `npm run build`, and Vitest.
+
+Deploy: [.github/workflows/deploy-aws.yml](.github/workflows/deploy-aws.yml) pushes Docker images to ECR on each push to `main` once the secrets and variables above are configured.
