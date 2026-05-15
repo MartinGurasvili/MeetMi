@@ -1,7 +1,7 @@
 # Build Docker images and push to Amazon ECR. Wire ECS/App Runner to pull :latest or :sha tags.
 #
 # Prerequisites (once per AWS account):
-# - ECR repositories: meetmi-backend, meetmi-frontend
+# - ECR repositories meetmi-backend / meetmi-frontend (created by workflow if missing)
 # - GitHub OIDC provider + IAM role trusted by this repo (see README)
 # - GitHub secrets: AWS_REGION, AWS_ROLE_TO_ASSUME
 # - GitHub variable (recommended): VITE_API_URL = https://<your-api-host>/api
@@ -32,7 +32,22 @@ jobs:
         uses: aws-actions/configure-aws-credentials@v4
         with:
           role-to-assume: ${{ secrets.AWS_ROLE_TO_ASSUME }}
-          aws-region: ${{ secrets.AWS_REGION }}
+          aws-region: ${{ secrets.AWS_REGION || vars.AWS_REGION }}
+
+      - name: Ensure ECR repositories exist
+        run: |
+          set -euo pipefail
+          for repo in meetmi-backend meetmi-frontend; do
+            if aws ecr describe-repositories --repository-names "$repo" >/dev/null 2>&1; then
+              echo "ECR repository exists: $repo"
+            else
+              echo "Creating ECR repository: $repo"
+              aws ecr create-repository \
+                --repository-name "$repo" \
+                --image-scanning-configuration scanOnPush=true \
+                --encryption-configuration encryptionType=AES256
+            fi
+          done
 
       - name: Log in to Amazon ECR
         id: ecr
