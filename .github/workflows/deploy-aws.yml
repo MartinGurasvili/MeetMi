@@ -93,7 +93,7 @@ jobs:
           docker push "$REGISTRY/meetmi-frontend:$SHA_TAG"
           docker push "$REGISTRY/meetmi-frontend:latest"
 
-      - name: Optional — ECS force new deployment
+      - name: Roll out new images on ECS (database unchanged)
         env:
           CLUSTER: ${{ vars.AWS_ECS_CLUSTER }}
           BACKEND_SVC: ${{ vars.AWS_ECS_SERVICE_BACKEND }}
@@ -101,12 +101,17 @@ jobs:
         run: |
           set -euo pipefail
           if [ -z "${CLUSTER:-}" ]; then
-            echo "Skipping ECS (set repository Variable AWS_ECS_CLUSTER to enable)."
+            echo "::warning::Images are in ECR only. To run the app, complete docs/aws-ecs-console-setup.md then set Variables: AWS_ECS_CLUSTER, AWS_ECS_SERVICE_BACKEND, AWS_ECS_SERVICE_FRONTEND."
             exit 0
           fi
-          if [ -n "${BACKEND_SVC:-}" ]; then
-            aws ecs update-service --cluster "$CLUSTER" --service "$BACKEND_SVC" --force-new-deployment
+          if [ -z "${BACKEND_SVC:-}" ] || [ -z "${FRONTEND_SVC:-}" ]; then
+            echo "::error::Set AWS_ECS_SERVICE_BACKEND and AWS_ECS_SERVICE_FRONTEND repository Variables (e.g. meetmi-backend, meetmi-frontend)."
+            exit 1
           fi
-          if [ -n "${FRONTEND_SVC:-}" ]; then
-            aws ecs update-service --cluster "$CLUSTER" --service "$FRONTEND_SVC" --force-new-deployment
+          echo "Forcing new deployment (pulls meetmi-backend:latest and meetmi-frontend:latest; RDS is not restarted)."
+          aws ecs update-service --cluster "$CLUSTER" --service "$BACKEND_SVC" --force-new-deployment --output text --query 'service.serviceName'
+          aws ecs update-service --cluster "$CLUSTER" --service "$FRONTEND_SVC" --force-new-deployment --output text --query 'service.serviceName'
+          echo "Watch rollout: ECS → Clusters → $CLUSTER → each service → Deployments tab."
+          if [ -n "${{ vars.PUBLIC_APP_URL }}" ]; then
+            echo "App URL (if configured): ${{ vars.PUBLIC_APP_URL }}"
           fi
