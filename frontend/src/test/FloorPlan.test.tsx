@@ -5,6 +5,19 @@ import FloorPlan from '../components/FloorPlan';
 import { demoSpaces } from '../data/demo';
 import type { FloorLayoutExportV1, Space } from '../types';
 
+const manchesterDesk: Space = {
+  id: 9001,
+  floor_id: 1,
+  name: 'Desk M01',
+  type: 'hot_desk',
+  zone: 'Manchester West',
+  x_coordinate: 150,
+  y_coordinate: 226,
+  capacity: 1,
+  is_active: true,
+  equipment: [],
+};
+
 const tinyLayout: FloorLayoutExportV1 = {
   version: 1,
   schema: 'meetmi-floor-layout-v1',
@@ -60,7 +73,7 @@ it('renders markers from imported layout when space ids match localId', () => {
 
 it('opens selection callback from marker', async () => {
   const onSelect = vi.fn();
-  render(<FloorPlan spaces={demoSpaces.slice(0, 1)} onSelectSpace={onSelect} />);
+  render(<FloorPlan spaces={[manchesterDesk]} floorId={1} onSelectSpace={onSelect} />);
   await userEvent.click(screen.getByLabelText('Desk M01'));
   expect(onSelect).toHaveBeenCalledWith(expect.objectContaining({ name: 'Desk M01' }));
 });
