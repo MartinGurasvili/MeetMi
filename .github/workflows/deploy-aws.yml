@@ -1,0 +1,91 @@
+# Build Docker images and push to Amazon ECR. Wire ECS/App Runner to pull :latest or :sha tags.
+#
+# Prerequisites (once per AWS account):
+# - ECR repositories: meetmi-backend, meetmi-frontend
+# - GitHub OIDC provider + IAM role trusted by this repo (see README)
+# - GitHub secrets: AWS_REGION, AWS_ROLE_TO_ASSUME
+# - GitHub variable (recommended): VITE_API_URL = https://<your-api-host>/api
+
+name: Deploy to AWS (ECR)
+
+on:
+  push:
+    branches: [main]
+  workflow_dispatch:
+
+concurrency:
+  group: deploy-aws-${{ github.ref }}
+  cancel-in-progress: true
+
+permissions:
+  contents: read
+  id-token: write
+
+jobs:
+  push-images:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Configure AWS credentials (OIDC)
+        uses: aws-actions/configure-aws-credentials@v4
+        with:
+          role-to-assume: ${{ secrets.AWS_ROLE_TO_ASSUME }}
+          aws-region: ${{ secrets.AWS_REGION }}
+
+      - name: Log in to Amazon ECR
+        id: ecr
+        uses: aws-actions/amazon-ecr-login@v2
+
+      - name: Set image tags
+        id: meta
+        run: |
+          echo "registry=${{ steps.ecr.outputs.registry }}" >> "$GITHUB_OUTPUT"
+          echo "sha_tag=${GITHUB_SHA::12}" >> "$GITHUB_OUTPUT"
+
+      - name: Build and push backend image
+        env:
+          REGISTRY: ${{ steps.meta.outputs.registry }}
+          SHA_TAG: ${{ steps.meta.outputs.sha_tag }}
+        run: |
+          docker build -t "$REGISTRY/meetmi-backend:$SHA_TAG" -t "$REGISTRY/meetmi-backend:latest" backend
+          docker push "$REGISTRY/meetmi-backend:$SHA_TAG"
+          docker push "$REGISTRY/meetmi-backend:latest"
+
+      - name: Build and push frontend image
+        env:
+          REGISTRY: ${{ steps.meta.outputs.registry }}
+          SHA_TAG: ${{ steps.meta.outputs.sha_tag }}
+        run: |
+          set -euo pipefail
+          VITE_API_URL="${{ vars.VITE_API_URL }}"
+          if [ -z "$VITE_API_URL" ]; then
+            echo "::error::Set a GitHub repository Variable VITE_API_URL (e.g. https://api.yourdomain.com/api) so the SPA can reach the backend after deploy."
+            exit 1
+          fi
+          docker build \
+            --build-arg "VITE_API_URL=$VITE_API_URL" \
+            -t "$REGISTRY/meetmi-frontend:$SHA_TAG" \
+            -t "$REGISTRY/meetmi-frontend:latest" \
+            frontend
+          docker push "$REGISTRY/meetmi-frontend:$SHA_TAG"
+          docker push "$REGISTRY/meetmi-frontend:latest"
+
+      - name: Optional — ECS force new deployment
+        env:
+          CLUSTER: ${{ vars.AWS_ECS_CLUSTER }}
+          BACKEND_SVC: ${{ vars.AWS_ECS_SERVICE_BACKEND }}
+          FRONTEND_SVC: ${{ vars.AWS_ECS_SERVICE_FRONTEND }}
+        run: |
+          set -euo pipefail
+          if [ -z "${CLUSTER:-}" ]; then
+            echo "Skipping ECS (set repository Variable AWS_ECS_CLUSTER to enable)."
+            exit 0
+          fi
+          if [ -n "${BACKEND_SVC:-}" ]; then
+            aws ecs update-service --cluster "$CLUSTER" --service "$BACKEND_SVC" --force-new-deployment
+          fi
+          if [ -n "${FRONTEND_SVC:-}" ]; then
+            aws ecs update-service --cluster "$CLUSTER" --service "$FRONTEND_SVC" --force-new-deployment
+          fi

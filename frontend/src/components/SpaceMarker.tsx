@@ -41,11 +41,16 @@ function diamondPoints(x: number, y: number, width: number, depth: number) {
 
 export default function SpaceMarker({ space, state, onSelect, x, y }: Props) {
   const style = stateStyles[state];
-  const isRoom = space.type === 'meeting_room';
-  const width = isRoom ? 84 + Math.min(space.capacity, 12) * 2 : 38;
-  const depth = isRoom ? 52 + Math.min(space.capacity, 12) : 26;
-  const height = isRoom ? 26 : 16;
-  const selectedLift = state === 'selected' ? -10 : state === 'recommended' ? -5 : 0;
+  const isDesk = space.type === 'hot_desk';
+  const width = isDesk ? 28 : 36;
+  const depth = isDesk ? 19 : 24;
+  const height = isDesk ? 11 : 15;
+  const deskPad = isDesk ? 9 : 12;
+  const deskRectW = isDesk ? 18 : 24;
+  const deskRectH = isDesk ? 7 : 10;
+  const chairR = isDesk ? 2.75 : 3.5;
+  const chairY = isDesk ? 6 : 8;
+  const selectedLift = state === 'selected' ? -4 : state === 'recommended' ? -2 : 0;
   const label = `${space.name} - ${space.zone} - capacity ${space.capacity}`;
 
   return (
@@ -64,28 +69,44 @@ export default function SpaceMarker({ space, state, onSelect, x, y }: Props) {
         }
       }}
       className="dashboard-space-marker"
-      transform={`translate(0 ${selectedLift})`}
     >
-      <title>{label}</title>
-      <ellipse cx={x} cy={y + depth / 2 + 15} rx={width / 1.7} ry={depth / 1.9} fill={style.glow} opacity={state === 'booked' ? 0.24 : 0.5} filter="url(#softBlur)" />
-      {state === 'selected' ? <ellipse cx={x} cy={y + 4} rx={width / 1.35} ry={depth / 1.25} fill="none" stroke={style.glow} strokeWidth="3" opacity="0.6" style={{ animation: 'mapPulse 1.8s ease-in-out infinite', transformOrigin: `${x}px ${y}px` }} /> : null}
-      {state === 'recommended' ? <ellipse cx={x} cy={y + 4} rx={width / 1.45} ry={depth / 1.35} fill="none" stroke={style.stroke} strokeWidth="2.5" opacity="0.7" style={{ animation: 'mapPulse 1.8s ease-in-out infinite', transformOrigin: `${x}px ${y}px` }} /> : null}
-      <polygon points={diamondPoints(x, y + height, width, depth)} fill={style.side} opacity={state === 'booked' ? 0.54 : 0.9} />
-      <polygon points={diamondPoints(x, y, width, depth)} fill={style.top} stroke={style.stroke} strokeWidth={state === 'selected' ? 2.5 : 1.5} opacity={state === 'booked' ? 0.62 : 1} />
-      {isRoom ? (
-        <>
-          <polyline points={`${x - width / 2},${y} ${x},${y - depth / 2} ${x + width / 2},${y}`} fill="none" stroke="rgba(255,255,255,0.48)" strokeWidth="2" />
-          <line x1={x} y1={y - depth / 2} x2={x} y2={y + depth / 2} stroke="rgba(255,255,255,0.2)" strokeWidth="1.5" />
-        </>
-      ) : (
-        <>
-          <rect x={x - 12} y={y - 5} width="24" height="10" rx="3" fill="rgba(255,255,255,0.78)" transform={`rotate(0 ${x} ${y})`} />
-          <circle cx={x} cy={y + 8} r="4" fill="rgba(255,255,255,0.4)" />
-        </>
-      )}
-      <text x={x} y={y + depth / 2 + 28} textAnchor="middle" className="dashboard-space-label" opacity={state === 'booked' ? 0.48 : 0.9}>
-        {space.name}
-      </text>
+      <g className="dashboard-space-marker-body" transform={`translate(0 ${selectedLift})`}>
+        <title>{label}</title>
+        <ellipse cx={x} cy={y + depth / 2 + 12} rx={width / 1.7} ry={depth / 1.9} fill={style.glow} opacity={state === 'booked' ? 0.24 : 0.5} filter="url(#softBlur)" />
+        {state === 'selected' ? (
+          <ellipse
+            cx={x}
+            cy={y + 3}
+            rx={width / 1.35}
+            ry={depth / 1.25}
+            fill="none"
+            stroke={style.glow}
+            strokeWidth="2.5"
+            className="dashboard-space-marker-pulse"
+          />
+        ) : null}
+        {state === 'recommended' ? (
+          <ellipse
+            cx={x}
+            cy={y + 3}
+            rx={width / 1.45}
+            ry={depth / 1.35}
+            fill="none"
+            stroke={style.stroke}
+            strokeWidth="2"
+            className="dashboard-space-marker-pulse"
+          />
+        ) : null}
+        <polygon points={diamondPoints(x, y + height, width, depth)} fill={style.side} opacity={state === 'booked' ? 0.54 : 0.9} />
+        <polygon points={diamondPoints(x, y, width, depth)} fill={style.top} stroke={style.stroke} strokeWidth={state === 'selected' ? 2.2 : 1.35} opacity={state === 'booked' ? 0.62 : 1} />
+        <rect x={x - deskPad} y={y - 4} width={deskRectW} height={deskRectH} rx="2.5" fill="rgba(255,255,255,0.78)" transform={`rotate(0 ${x} ${y})`} />
+        <circle cx={x} cy={y + chairY} r={chairR} fill="rgba(255,255,255,0.4)" />
+        {!isDesk ? (
+          <text x={x} y={y + depth / 2 + 22} textAnchor="middle" className="dashboard-space-label" opacity={state === 'booked' ? 0.48 : 0.9}>
+            {space.name}
+          </text>
+        ) : null}
+      </g>
     </g>
   );
 }

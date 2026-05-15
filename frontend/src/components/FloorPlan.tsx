@@ -1,6 +1,7 @@
 import { type PointerEvent, type WheelEvent, useEffect, useMemo, useRef, useState } from 'react';
 import { MapPinned, Minus, Plus } from 'lucide-react';
-import type { Space } from '../types';
+import type { FloorLayoutExportV1, Space } from '../types';
+import { placementCenterPx } from '../lib/floorLayoutCoords';
 import SpaceMarker from './SpaceMarker';
 
 interface Props {
@@ -10,6 +11,8 @@ interface Props {
   bookedSpaceIds?: number[];
   onSelectSpace: (space: Space) => void;
   floorId?: number;
+  /** When set, renders background image + markers from layout; match placements via `space.layoutLocalId ?? space.id`. */
+  layout?: FloorLayoutExportV1 | null;
 }
 
 interface ViewBox {
@@ -19,12 +22,13 @@ interface ViewBox {
   height: number;
 }
 
-const floorShapes: Record<'manchester' | 'london', { title: string; width: number; height: number; viewBox: ViewBox }> = {
+const floorShapes: Record<'manchester' | 'london', { title: string; width: number; height: number; viewBox: ViewBox; transform?: string }> = {
   manchester: {
     title: 'Manchester office',
     width: 1024,
-    height: 780,
-    viewBox: { x: -70, y: -70, width: 1160, height: 880 },
+    height: 820,
+    viewBox: { x: -95, y: -90, width: 1210, height: 910 },
+    transform: 'translate(250 38) rotate(-3 512 410) skewX(-7) scale(0.78 0.76)',
   },
   london: {
     title: 'London office',
@@ -35,7 +39,7 @@ const floorShapes: Record<'manchester' | 'london', { title: string; width: numbe
 };
 
 function getFloorShape(floorId?: number) {
-  return floorId === 2 ? floorShapes.london : floorShapes.manchester;
+  return floorId === 3 ? floorShapes.london : floorShapes.manchester;
 }
 
 function DeskCluster({ x, y, rows = 2, cols = 4, rotate = 0 }: { x: number; y: number; rows?: number; cols?: number; rotate?: number }) {
@@ -84,29 +88,51 @@ function ManchesterFloorArt() {
   return (
     <g className="floor-art">
       <path
-        className="floor-shell"
-        d="M74 78 L304 34 L404 488 L342 506 L382 712 L138 744 Z M656 70 H930 V332 H810 V700 H660 V446 H528 V360 H656 Z M362 244 H660 V394 H378 Z"
+        className="floor-extrude"
+        d="M74 76 L304 34 L430 506 L372 522 L418 704 L164 744 L58 96 Z M406 238 H676 V356 H526 V400 H414 Z M670 70 H948 V334 H816 V705 H662 V446 H530 V388 H672 Z"
+        transform="translate(26 34)"
       />
-      <path className="floor-corridor" d="M352 244 H660 V392 H378 Z" />
-      <path className="floor-corridor" d="M386 484 H660 V620 H432 Z" />
-      <MeetingRoom x={116} y={82} width={128} height={88} rotate={-10} seats={10} />
-      <MeetingRoom x={174} y={628} width={150} height={86} rotate={-10} seats={12} />
-      <MeetingRoom x={710} y={82} width={116} height={82} seats={8} />
-      <MeetingRoom x={812} y={360} width={100} height={110} seats={10} />
-      <rect x="490" y="468" width="120" height="118" rx="9" className="floor-service" />
-      <rect x="604" y="616" width="112" height="66" rx="8" className="floor-service" />
-      <DeskCluster x={132} y={204} cols={4} rotate={-10} />
-      <DeskCluster x={176} y={334} cols={4} rotate={-10} />
-      <DeskCluster x={218} y={466} cols={4} rotate={-10} />
-      <DeskCluster x={252} y={570} cols={4} rotate={-10} />
-      <DeskCluster x={694} y={188} cols={4} />
-      <DeskCluster x={816} y={188} cols={4} />
-      <DeskCluster x={696} y={296} cols={4} />
-      <DeskCluster x={824} y={548} cols={4} />
-      <DeskCluster x={610} y={404} rows={1} cols={3} />
-      <DeskCluster x={666} y={640} rows={2} cols={3} />
-      <path className="floor-window" d="M98 86 L132 252 M142 310 L186 510 M192 572 L224 720" />
-      <path className="floor-window" d="M930 90 V320 M930 548 V694 M656 70 H920" />
+      <path
+        className="floor-shell"
+        d="M74 76 L304 34 L430 506 L372 522 L418 704 L164 744 L58 96 Z M406 238 H676 V356 H526 V400 H414 Z M670 70 H948 V334 H816 V705 H662 V446 H530 V388 H672 Z"
+      />
+      <path className="floor-corridor" d="M402 238 H676 V354 H523 V398 H414 Z" />
+      <path className="floor-corridor" d="M382 454 L662 448 V570 L532 570 V514 L412 530 Z" />
+      <path className="floor-corridor" d="M520 570 H664 V705 H418 L386 590 H520 Z" />
+
+      <MeetingRoom x={106} y={88} width={138} height={84} rotate={-10} seats={10} />
+      <MeetingRoom x={196} y={632} width={154} height={84} rotate={-10} seats={12} />
+      <MeetingRoom x={688} y={86} width={116} height={80} seats={8} />
+      <MeetingRoom x={826} y={356} width={98} height={106} seats={10} />
+      <MeetingRoom x={828} y={654} width={98} height={50} seats={6} />
+
+      <rect x="498" y="466" width="138" height="100" rx="10" className="floor-service" />
+      <rect x="602" y="610" width="132" height="78" rx="9" className="floor-service" />
+      <rect x="348" y="502" width="80" height="58" rx="8" className="floor-room" transform="rotate(-10 388 531)" />
+      <rect x="734" y="494" width="74" height="78" rx="8" className="floor-room" />
+
+      <DeskCluster x={126} y={204} cols={4} rotate={-10} />
+      <DeskCluster x={164} y={320} cols={4} rotate={-10} />
+      <DeskCluster x={198} y={432} cols={4} rotate={-10} />
+      <DeskCluster x={232} y={532} cols={4} rotate={-10} />
+      <DeskCluster x={256} y={610} rows={1} cols={4} rotate={-10} />
+      <DeskCluster x={286} y={156} rows={2} cols={3} rotate={-10} />
+      <DeskCluster x={318} y={300} rows={2} cols={3} rotate={-10} />
+
+      <DeskCluster x={706} y={184} cols={4} />
+      <DeskCluster x={828} y={184} cols={4} />
+      <DeskCluster x={708} y={286} cols={4} />
+      <DeskCluster x={830} y={286} cols={4} />
+      <DeskCluster x={836} y={492} cols={4} />
+      <DeskCluster x={832} y={574} rows={1} cols={4} />
+      <DeskCluster x={672} y={638} rows={2} cols={3} />
+      <DeskCluster x={746} y={638} rows={2} cols={3} />
+      <DeskCluster x={604} y={406} rows={1} cols={4} />
+      <DeskCluster x={730} y={440} rows={2} cols={2} />
+
+      <path className="floor-internal-wall" d="M304 34 L340 168 M358 236 L404 410 M372 522 L418 704 M670 70 H948 M670 334 H948 M816 334 V705 M662 446 H816 M498 466 H734 M498 566 H636" />
+      <path className="floor-window" d="M86 84 L122 244 M134 300 L184 508 M194 570 L236 724" />
+      <path className="floor-window" d="M948 92 V324 M948 494 V690 M674 70 H936 M664 706 H806" />
     </g>
   );
 }
@@ -147,8 +173,24 @@ export default function FloorPlan({
   bookedSpaceIds = [],
   onSelectSpace,
   floorId,
+  layout = null,
 }: Props) {
-  const shape = getFloorShape(floorId ?? spaces[0]?.floor_id);
+  const builtInShape = useMemo(() => getFloorShape(floorId ?? spaces[0]?.floor_id), [floorId, spaces]);
+
+  const shape = useMemo(() => {
+    if (layout) {
+      const { w, h } = layout.referenceSize;
+      return {
+        title: layout.title ?? 'Custom floor',
+        width: w,
+        height: h,
+        viewBox: { x: 0, y: 0, width: w, height: h } satisfies ViewBox,
+        transform: undefined as string | undefined,
+      };
+    }
+    return builtInShape;
+  }, [layout, builtInShape]);
+
   const [viewBox, setViewBox] = useState(shape.viewBox);
   const svgRef = useRef<SVGSVGElement>(null);
   const dragRef = useRef<{ pointerId: number; clientX: number; clientY: number; viewBox: ViewBox } | null>(null);
@@ -159,10 +201,20 @@ export default function FloorPlan({
     setViewBox(shape.viewBox);
   }, [shape.viewBox]);
 
-  const projectedSpaces = useMemo(
-    () => spaces.map((space) => ({ space, x: space.x_coordinate, y: space.y_coordinate })),
-    [spaces],
-  );
+  const projectedSpaces = useMemo(() => {
+    if (!layout) {
+      return spaces.map((space) => ({ space, x: space.x_coordinate, y: space.y_coordinate }));
+    }
+    const { w, h } = layout.referenceSize;
+    const list: { space: Space; x: number; y: number }[] = [];
+    for (const space of spaces) {
+      const layoutKey = space.layoutLocalId ?? space.id;
+      const p = layout.placements.find((pl) => pl.localId === layoutKey);
+      if (!p) continue;
+      list.push({ space, ...placementCenterPx(p, w, h) });
+    }
+    return list;
+  }, [spaces, layout]);
 
   function zoom(delta: number, center?: { x: number; y: number }) {
     setViewBox((box) => {
@@ -287,24 +339,50 @@ export default function FloorPlan({
           </pattern>
         </defs>
 
-        <rect x="-4000" y="-4000" width="10000" height="10000" fill="url(#isoGrid)" />
-
-        <ellipse cx={shape.width / 2} cy={shape.height * 0.82} rx="720" ry="220" fill="rgba(0, 122, 255, 0.12)" filter="url(#softBlur)" />
-        <ellipse cx={shape.width / 2} cy={shape.height * 0.78} rx="520" ry="150" fill="rgba(0, 0, 0, 0.42)" filter="url(#softBlur)" />
-
-        <g>
-          {floorId === 2 ? <LondonFloorArt /> : <ManchesterFloorArt />}
-          {projectedSpaces.map(({ space, x, y }) => (
-            <SpaceMarker
-              key={space.id}
-              space={space}
-              x={x}
-              y={y}
-              state={markerState(space)}
-              onSelect={onSelectSpace}
+        {layout ? (
+          <>
+            <rect x="-2000" y="-2000" width="8000" height="8000" fill="rgba(1, 3, 23, 1)" />
+            <image
+              href={layout.background.value}
+              x={0}
+              y={0}
+              width={shape.width}
+              height={shape.height}
+              preserveAspectRatio="none"
             />
-          ))}
-        </g>
+            {projectedSpaces.map(({ space, x, y }) => (
+              <SpaceMarker
+                key={space.id}
+                space={space}
+                x={x}
+                y={y}
+                state={markerState(space)}
+                onSelect={onSelectSpace}
+              />
+            ))}
+          </>
+        ) : (
+          <>
+            <rect x="-4000" y="-4000" width="10000" height="10000" fill="url(#isoGrid)" />
+
+            <ellipse cx={shape.width / 2} cy={shape.height * 0.82} rx="720" ry="220" fill="rgba(0, 122, 255, 0.12)" filter="url(#softBlur)" />
+            <ellipse cx={shape.width / 2} cy={shape.height * 0.78} rx="520" ry="150" fill="rgba(0, 0, 0, 0.42)" filter="url(#softBlur)" />
+
+            <g transform={shape.transform}>
+              {floorId === 3 ? <LondonFloorArt /> : <ManchesterFloorArt />}
+              {projectedSpaces.map(({ space, x, y }) => (
+                <SpaceMarker
+                  key={space.id}
+                  space={space}
+                  x={x}
+                  y={y}
+                  state={markerState(space)}
+                  onSelect={onSelectSpace}
+                />
+              ))}
+            </g>
+          </>
+        )}
       </svg>
     </section>
   );

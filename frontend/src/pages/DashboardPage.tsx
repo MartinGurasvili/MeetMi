@@ -7,7 +7,8 @@ import BookingModal from '../components/BookingModal';
 import FloorPlan from '../components/FloorPlan';
 import OfficeMapPanel from '../components/OfficeMapPanel';
 import SpaceDetailsDrawer from '../components/SpaceDetailsDrawer';
-import { demoEquipment, demoFloors, demoSpaces } from '../data/demo';
+import { demoEquipment, demoFloors, demoSpaces, mergeApiSpacesWithLayoutFloors } from '../data/demo';
+import { floorLayoutForFloor } from '../data/floorLayoutRegistry';
 import type { Filters, Recommendation, Space } from '../types';
 
 const tomorrow = new Date(Date.now() + 86400000).toISOString().slice(0, 10);
@@ -42,7 +43,7 @@ export default function DashboardPage() {
   }, []);
 
   useEffect(() => {
-    api.spaces().then(setSpaces).catch(() => setSpaces(demoSpaces));
+    api.spaces().then((apiSpaces) => setSpaces(mergeApiSpacesWithLayoutFloors(apiSpaces))).catch(() => setSpaces(demoSpaces));
   }, []);
 
   useEffect(() => {
@@ -75,6 +76,17 @@ export default function DashboardPage() {
       ),
     [spaces, floorId, filters],
   );
+
+  /** Layout floors show every desk/room on the image; the rail list still uses `spaceType` via `visibleSpaces`. */
+  const mapSpaces = useMemo(() => {
+    if (!floorLayoutForFloor(floorId)) return visibleSpaces;
+    return spaces.filter(
+      (space) =>
+        space.floor_id === floorId &&
+        space.capacity >= filters.attendeeCount &&
+        filters.requiredEquipmentIds.every((id) => space.equipment.some((item) => item.id === id)),
+    );
+  }, [spaces, floorId, filters, visibleSpaces]);
 
   const selectedSpace = selected ? spaces.find((space) => space.id === selected.id) ?? selected : null;
   const selectedVisible = selectedSpace && selectedSpace.floor_id === floorId ? selectedSpace : null;
@@ -138,11 +150,12 @@ export default function DashboardPage() {
   const mapCard = (
     <div className="dashboard-map-card">
       <FloorPlan
-        spaces={visibleSpaces}
+        spaces={mapSpaces}
         selectedSpace={selectedVisible}
         recommendedSpaceIds={recommendations.map((r) => r.space.id)}
         onSelectSpace={handleSelectSpace}
         floorId={floorId}
+        layout={floorLayoutForFloor(floorId) ?? null}
       />
     </div>
   );
