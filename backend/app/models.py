@@ -73,9 +73,11 @@ class SpaceEquipment(Base):
 
 class Space(Base):
     __tablename__ = "spaces"
+    __table_args__ = (UniqueConstraint("floor_id", "layout_local_id", name="uq_space_floor_layout_local_id"),)
 
     id: Mapped[int] = mapped_column(primary_key=True, index=True)
     floor_id: Mapped[int] = mapped_column(ForeignKey("office_floors.id"), nullable=False, index=True)
+    layout_local_id: Mapped[int | None] = mapped_column(Integer, nullable=True, index=True)
     name: Mapped[str] = mapped_column(String(120), nullable=False)
     type: Mapped[SpaceType] = mapped_column(Enum(SpaceType), nullable=False, index=True)
     zone: Mapped[str] = mapped_column(String(80), nullable=False, index=True)

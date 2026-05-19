@@ -1,0 +1,44 @@
+{
+  "family": "meetmi-backend",
+  "networkMode": "awsvpc",
+  "requiresCompatibilities": ["FARGATE"],
+  "cpu": "512",
+  "memory": "1024",
+  "executionRoleArn": "REPLACE_EXECUTION_ROLE_ARN",
+  "taskRoleArn": "REPLACE_TASK_ROLE_ARN",
+  "containerDefinitions": [
+    {
+      "name": "backend",
+      "image": "REPLACE_ACCOUNT_ID.dkr.ecr.REPLACE_REGION.amazonaws.com/meetmi-backend:latest",
+      "essential": true,
+      "portMappings": [{ "containerPort": 8000, "protocol": "tcp" }],
+      "environment": [
+        { "name": "ENVIRONMENT", "value": "production" },
+        { "name": "JWT_ALGORITHM", "value": "HS256" },
+        { "name": "ACCESS_TOKEN_EXPIRE_MINUTES", "value": "15" },
+        { "name": "REFRESH_TOKEN_EXPIRE_DAYS", "value": "7" },
+        { "name": "COOKIE_SECURE", "value": "true" }
+      ],
+      "secrets": [
+        { "name": "DATABASE_URL", "valueFrom": "REPLACE_DATABASE_URL_SECRET_ARN" },
+        { "name": "JWT_SECRET_KEY", "valueFrom": "REPLACE_JWT_SECRET_ARN" },
+        { "name": "CORS_ORIGINS", "valueFrom": "REPLACE_CORS_ORIGINS_SECRET_ARN" }
+      ],
+      "logConfiguration": {
+        "logDriver": "awslogs",
+        "options": {
+          "awslogs-group": "/ecs/meetmi-backend",
+          "awslogs-region": "REPLACE_REGION",
+          "awslogs-stream-prefix": "ecs"
+        }
+      },
+      "healthCheck": {
+        "command": ["CMD-SHELL", "python -c \"import urllib.request; urllib.request.urlopen('http://127.0.0.1:8000/api/health')\" || exit 1"],
+        "interval": 30,
+        "timeout": 5,
+        "retries": 3,
+        "startPeriod": 60
+      }
+    }
+  ]
+}

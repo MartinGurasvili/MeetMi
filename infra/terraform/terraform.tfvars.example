@@ -1,0 +1,13 @@
+aws_region         = "eu-west-2"
+project_name       = "meetmi"
+environment        = "dev"
+github_repository  = "YOUR_GITHUB_USER/MeetMi"
+
+cost_profile = "demo" # cheap demo defaults; set "standard" for more headroom
+
+enable_github_oidc          = true
+create_github_oidc_provider = false # true only on a fresh AWS account
+use_existing_ecr_repositories = true # set true if CI already created meetmi-backend / meetmi-frontend
+ecs_enable_execute_command  = true
+
+# db_password = null  # auto-generated if omitted

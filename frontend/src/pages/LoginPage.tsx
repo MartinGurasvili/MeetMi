@@ -7,7 +7,7 @@ import { useAuth } from '../contexts/AuthContext';
 export default function LoginPage() {
   const navigate = useNavigate();
   const { refreshUser } = useAuth();
-  const [email, setEmail] = useState('user@meetmi.local');
+  const [email, setEmail] = useState('user@meetmi.example.com');
   const [password, setPassword] = useState('UserPass123');
   const [message, setMessage] = useState<string | null>(null);
   const [submitting, setSubmitting] = useState(false);

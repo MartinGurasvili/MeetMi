@@ -68,6 +68,7 @@ class OfficeFloorRead(OfficeFloorBase):
 
 class SpaceBase(BaseModel):
     floor_id: int
+    layout_local_id: int | None = None
     name: str = Field(min_length=2, max_length=120)
     type: SpaceType
     zone: str = Field(min_length=2, max_length=80)
@@ -102,6 +103,7 @@ class SpaceUpdate(BaseModel):
 class SpaceRead(BaseModel):
     id: int
     floor_id: int
+    layout_local_id: int | None = None
     name: str
     type: SpaceType
     zone: str

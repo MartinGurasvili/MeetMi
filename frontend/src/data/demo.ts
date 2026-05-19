@@ -76,7 +76,25 @@ export const demoSpaces: Space[] = (() => {
 /** Keep layout-driven floors from demo when the API omits `layoutLocalId` / placement alignment. */
 export function mergeApiSpacesWithLayoutFloors(apiSpaces: Space[]): Space[] {
   const managed = layoutManagedFloorIds();
-  const fromDemo = demoSpaces.filter((s) => managed.has(s.floor_id));
-  const fromApi = apiSpaces.filter((s) => !managed.has(s.floor_id));
-  return [...fromApi, ...fromDemo];
+  const apiByManagedFloor = new Map<number, Space[]>();
+  const fromApi: Space[] = [];
+
+  for (const space of apiSpaces) {
+    const normalized = { ...space, layoutLocalId: space.layoutLocalId ?? space.layout_local_id ?? null };
+    if (managed.has(space.floor_id)) {
+      const spaces = apiByManagedFloor.get(space.floor_id) ?? [];
+      spaces.push(normalized);
+      apiByManagedFloor.set(space.floor_id, spaces);
+    } else {
+      fromApi.push(normalized);
+    }
+  }
+
+  const managedSpaces = [...managed].flatMap((floorId) => {
+    const apiForFloor = apiByManagedFloor.get(floorId);
+    if (apiForFloor?.length) return apiForFloor;
+    return demoSpaces.filter((space) => space.floor_id === floorId);
+  });
+
+  return [...fromApi, ...managedSpaces];
 }

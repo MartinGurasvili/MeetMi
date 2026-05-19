@@ -12,6 +12,8 @@ backend/meetmi.db
 node_modules/
 frontend/node_modules/
 frontend/dist/
+frontend/test-results/
+frontend/tsconfig.tsbuildinfo
 
 # Environment files
 .env

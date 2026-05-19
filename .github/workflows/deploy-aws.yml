@@ -101,7 +101,7 @@ jobs:
         run: |
           set -euo pipefail
           if [ -z "${CLUSTER:-}" ]; then
-            echo "::warning::Images are in ECR only. To run the app, complete docs/aws-ecs-console-setup.md then set Variables: AWS_ECS_CLUSTER, AWS_ECS_SERVICE_BACKEND, AWS_ECS_SERVICE_FRONTEND."
+            echo "::warning::Images are in ECR only. Provision ECS with infra/terraform (see infra/terraform/README.md) or docs/aws-ecs-console-setup.md, then set Variables: AWS_ECS_CLUSTER, AWS_ECS_SERVICE_BACKEND, AWS_ECS_SERVICE_FRONTEND."
             exit 0
           fi
           if [ -z "${BACKEND_SVC:-}" ] || [ -z "${FRONTEND_SVC:-}" ]; then
@@ -115,3 +115,27 @@ jobs:
           if [ -n "${{ vars.PUBLIC_APP_URL }}" ]; then
             echo "App URL (if configured): ${{ vars.PUBLIC_APP_URL }}"
           fi
+
+      - name: Seed database on ECS
+        if: ${{ vars.AWS_ECS_CLUSTER != '' && vars.AWS_ECS_SERVICE_BACKEND != '' && vars.AWS_ECS_SERVICE_FRONTEND != '' }}
+        env:
+          AWS_REGION: ${{ secrets.AWS_REGION || vars.AWS_REGION }}
+          AWS_ECS_CLUSTER: ${{ vars.AWS_ECS_CLUSTER }}
+          AWS_ECS_SERVICE_BACKEND: ${{ vars.AWS_ECS_SERVICE_BACKEND }}
+          PROJECT_NAME: meetmi
+          ENVIRONMENT: dev
+        run: ./scripts/ecs-seed.sh
+
+      - name: Verify public API
+        if: ${{ vars.PUBLIC_APP_URL != '' }}
+        env:
+          PUBLIC_APP_URL: ${{ vars.PUBLIC_APP_URL }}
+        run: |
+          set -euo pipefail
+          HEALTH="$(curl -fsS "$PUBLIC_APP_URL/api/health")"
+          echo "$HEALTH"
+          echo "$HEALTH" | grep -q '"database":"connected"'
+          curl -fsS \
+            -H 'Content-Type: application/json' \
+            -d '{"email":"user@meetmi.example.com","password":"UserPass123"}' \
+            "$PUBLIC_APP_URL/api/auth/login" | grep -q 'access_token'

@@ -73,7 +73,7 @@ uvicorn app.main:app --reload
 
 OpenAPI docs: `http://localhost:8000/docs`
 
-**Demo accounts:** `admin@meetmi.local` / `AdminPass123` · `user@meetmi.local` / `UserPass123`
+**Demo accounts:** see [docs/DEMO_CREDENTIALS.md](docs/DEMO_CREDENTIALS.md).
 
 ### Frontend
 
@@ -112,6 +112,8 @@ docker compose up --build
 cd backend && alembic upgrade head
 ```
 
+`python -m app.seed` creates demo users, Manchester/London layout-matched spaces, and 220 bookings across the next 60 days. The deploy workflow runs this seed after ECS rolls out so the public API has working logins immediately.
+
 ## Security model
 
 - Parameterized ORM access, Pydantic validation at API boundaries, role-based admin routes, booking ownership checks.
@@ -124,9 +126,10 @@ cd backend && alembic upgrade head
 ```bash
 cd backend && pytest
 cd frontend && npm test
+cd frontend && npm run test:e2e
 ```
 
-CI (`.github/workflows/ci.yml`) runs both suites on pull requests and `main`.
+CI (`.github/workflows/ci.yml`) runs backend, frontend, and Playwright E2E suites on pull requests and `main`.
 
 ## Deployment
 
@@ -134,4 +137,4 @@ Container images are built from `backend/Dockerfile` and `frontend/Dockerfile`. 
 
 Typical AWS layout: ECR images → App Runner or ECS Fargate, RDS PostgreSQL, Secrets Manager for `JWT_SECRET_KEY` and database credentials, optional S3/CloudFront for static assets. Configure runtime env on the backend service (`DATABASE_URL`, `CORS_ORIGINS`, `COOKIE_SECURE=true`).
 
-**Running on AWS:** ECR stores images; **ECS + RDS** runs the app with a stable URL and persistent Postgres. First-time setup: [docs/aws-ecs-console-setup.md](docs/aws-ecs-console-setup.md). After that, CI pushes images and rolls ECS services (`AWS_ECS_CLUSTER`, `AWS_ECS_SERVICE_BACKEND`, `AWS_ECS_SERVICE_FRONTEND`). Optional variables: `VITE_API_URL` (defaults to `/api`), `PUBLIC_APP_URL` (printed in CI logs), `SKIP_FRONTEND_DEPLOY=true`.
+**Running on AWS:** ECR stores images; **ECS + RDS** runs the app with a stable URL and persistent Postgres. **First-time setup (recommended):** [infra/terraform/README.md](infra/terraform/README.md) (`terraform apply` once). Manual alternative: [docs/aws-ecs-console-setup.md](docs/aws-ecs-console-setup.md). After that, CI pushes images, rolls ECS services (`AWS_ECS_CLUSTER`, `AWS_ECS_SERVICE_BACKEND`, `AWS_ECS_SERVICE_FRONTEND`), seeds RDS, and verifies the public API. Set `VITE_API_URL=http://<alb-dns>/api` and `PUBLIC_APP_URL=http://<alb-dns>` for production verification. Optional variable: `SKIP_FRONTEND_DEPLOY=true`.
