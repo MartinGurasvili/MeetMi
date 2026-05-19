@@ -58,11 +58,23 @@ jobs:
           set -euo pipefail
           for i in {1..60}; do
             if curl -fsS http://localhost:8000/api/health >/dev/null; then
-              break
+              docker compose exec -T backend python -m app.seed
+              exit 0
+            fi
+            if ! docker compose ps backend --status running | grep -q backend; then
+              echo "Backend container is not running."
+              docker compose logs postgres backend
+              exit 1
+            fi
+            if [ "$i" -eq 60 ]; then
+              echo "Backend did not become healthy in time."
+              docker compose logs postgres backend
+              exit 1
             fi
             sleep 2
           done
-          docker compose exec -T backend python -m app.seed
+          docker compose logs postgres backend
+          exit 1
       - name: Run Playwright E2E
         working-directory: frontend
         env:
