@@ -41,7 +41,7 @@ TASK_ARN="$(aws ecs run-task \
   --task-definition "$TASK_DEFINITION" \
   --launch-type FARGATE \
   --network-configuration "awsvpcConfiguration={subnets=[$SUBNETS],securityGroups=[$SECURITY_GROUP],assignPublicIp=ENABLED}" \
-  --overrides '{"containerOverrides":[{"name":"backend","command":["sh","-c","alembic upgrade head && python -m app.seed"]}]}' \
+  --overrides '{"containerOverrides":[{"name":"backend","command":["sh","-c","cd /app && PYTHONPATH=/app alembic upgrade head && PYTHONPATH=/app python -m app.seed"]}]}' \
   --query 'tasks[0].taskArn' \
   --output text)"
 

@@ -1,14 +1,21 @@
 from fastapi import HTTPException, status
-from sqlalchemy import and_, select
 from sqlalchemy.orm import Session
 
-from app.models import Booking, BookingStatus, Space
+from app.models import Booking, BookingStatus, Space, SpaceType
 from app.schemas import BookingCreate, BookingUpdate
 from app.services.audit_service import log_audit
+from app.services.booking_rules import normalize_booking_window, user_has_desk_on_day
 
 
 def overlapping_booking_query(space_id: int, start_time, end_time, exclude_booking_id: int | None = None):
-    conditions = [Booking.space_id == space_id, Booking.status == BookingStatus.confirmed, Booking.start_time < end_time, Booking.end_time > start_time]
+    from sqlalchemy import and_, select
+
+    conditions = [
+        Booking.space_id == space_id,
+        Booking.status == BookingStatus.confirmed,
+        Booking.start_time < end_time,
+        Booking.end_time > start_time,
+    ]
     if exclude_booking_id is not None:
         conditions.append(Booking.id != exclude_booking_id)
     return select(Booking).where(and_(*conditions))
@@ -21,14 +28,26 @@ def create_booking(db: Session, user_id: int, payload: BookingCreate) -> Booking
     if payload.attendee_count > space.capacity:
         raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Attendee count exceeds space capacity")
 
-    # Conflict check and insert run in one transaction. PostgreSQL honors FOR UPDATE row locks,
-    # preventing two concurrent requests from both passing the overlap test before insert.
-    # SQLite ignores row-level locks, so production should use PostgreSQL/RDS for strongest safety.
-    conflict_stmt = overlapping_booking_query(payload.space_id, payload.start_time, payload.end_time).with_for_update()
+    start_time, end_time = normalize_booking_window(space.type, payload.start_time, payload.end_time)
+
+    if space.type == SpaceType.hot_desk and user_has_desk_on_day(db, user_id, start_time):
+        raise HTTPException(
+            status_code=status.HTTP_409_CONFLICT,
+            detail="You already have a desk booked for this day. Cancel it before booking another.",
+        )
+
+    conflict_stmt = overlapping_booking_query(payload.space_id, start_time, end_time).with_for_update()
     if db.execute(conflict_stmt).scalars().first():
         raise HTTPException(status_code=status.HTTP_409_CONFLICT, detail="Space is already booked for this time")
 
-    booking = Booking(user_id=user_id, **payload.model_dump())
+    booking = Booking(
+        user_id=user_id,
+        space_id=payload.space_id,
+        title=payload.title,
+        start_time=start_time,
+        end_time=end_time,
+        attendee_count=payload.attendee_count,
+    )
     db.add(booking)
     log_audit(db, user_id, "booking_created", "booking", None, f"Space {payload.space_id}")
     db.commit()
@@ -44,11 +63,25 @@ def update_booking(db: Session, booking: Booking, payload: BookingUpdate, actor_
     space = db.get(Space, booking.space_id)
     if not space or attendee_count > space.capacity:
         raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Invalid attendee count for space")
+
+    start_time, end_time = normalize_booking_window(space.type, start_time, end_time)
+
+    if space.type == SpaceType.hot_desk and user_has_desk_on_day(db, booking.user_id, start_time, exclude_booking_id=booking.id):
+        raise HTTPException(
+            status_code=status.HTTP_409_CONFLICT,
+            detail="You already have a desk booked for this day.",
+        )
+
     conflict_stmt = overlapping_booking_query(booking.space_id, start_time, end_time, booking.id).with_for_update()
     if db.execute(conflict_stmt).scalars().first():
         raise HTTPException(status_code=status.HTTP_409_CONFLICT, detail="Space is already booked for this time")
+
     for key, value in data.items():
+        if key in {"start_time", "end_time"}:
+            continue
         setattr(booking, key, value)
+    booking.start_time = start_time
+    booking.end_time = end_time
     log_audit(db, actor_user_id, "booking_updated", "booking", booking.id)
     db.commit()
     db.refresh(booking)

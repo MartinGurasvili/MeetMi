@@ -1,19 +1,20 @@
-import { useEffect, useMemo, useRef, useState } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { NavLink } from 'react-router-dom';
-import { CalendarDays, Check, ChevronDown, MapPinned, Sparkles, UserCircle, Users, X } from 'lucide-react';
+import { CalendarDays, Check, ChevronDown, MapPinned, UserCircle, Users, X } from 'lucide-react';
 import { api } from '../api/client';
 import { useAuth } from '../contexts/AuthContext';
-import BookingModal from '../components/BookingModal';
+import AppToast, { type AppToastTone } from '../components/AppToast';
 import FloorPlan from '../components/FloorPlan';
 import OfficeMapPanel from '../components/OfficeMapPanel';
-import SpaceDetailsDrawer from '../components/SpaceDetailsDrawer';
+import SpaceDetailsDrawer, { type SpaceAvailabilityKind } from '../components/SpaceDetailsDrawer';
 import { demoEquipment, demoFloors, demoSpaces, mergeApiSpacesWithLayoutFloors } from '../data/demo';
 import { floorLayoutForFloor } from '../data/floorLayoutRegistry';
-import type { Filters, Recommendation, Space } from '../types';
+import { resolveUserBooking, userHasDeskOnDate } from '../lib/bookings';
+import { bookingWindowForSpace, filtersToWindowIso, formatDashboardDate, isWeekendDate, nextWeekdayIso, normalizeWeekdayDate } from '../lib/dates';
+import type { Booking, Filters, Recommendation, Space } from '../types';
 
-const tomorrow = new Date(Date.now() + 86400000).toISOString().slice(0, 10);
 const initialFilters: Filters = {
-  date: tomorrow,
+  date: nextWeekdayIso(),
   start: '09:00',
   end: '10:00',
   spaceType: 'hot_desk',
@@ -23,24 +24,48 @@ const initialFilters: Filters = {
   preferredZone: '',
 };
 
+function updateFiltersDate(current: Filters, date: string): Filters {
+  return { ...current, date: normalizeWeekdayDate(date) };
+}
+
 export default function DashboardPage() {
   const { user, loading: authLoading, signOut } = useAuth();
   const [filters, setFilters] = useState(initialFilters);
   const [floorId, setFloorId] = useState(1);
   const [spaces, setSpaces] = useState(demoSpaces);
   const [recommendations, setRecommendations] = useState<Recommendation[]>([]);
+  const [bookedSpaceIds, setBookedSpaceIds] = useState<number[]>([]);
+  const [myBookedSpaceIds, setMyBookedSpaceIds] = useState<number[]>([]);
+  const [myBookings, setMyBookings] = useState<Booking[]>([]);
   const [selected, setSelected] = useState<Space | null>(null);
-  const [bookingOpen, setBookingOpen] = useState(false);
-  const [bookingAuthMessage, setBookingAuthMessage] = useState('');
+  const [toast, setToast] = useState<{ message: string; tone: AppToastTone }>({ message: '', tone: 'info' });
+  const [bookingSubmitting, setBookingSubmitting] = useState(false);
+  const [cancelling, setCancelling] = useState(false);
   const [officeMenuOpen, setOfficeMenuOpen] = useState(false);
   const [profileMenuOpen, setProfileMenuOpen] = useState(false);
   const officeWrapRef = useRef<HTMLDivElement>(null);
   const profileWrapRef = useRef<HTMLDivElement>(null);
 
-  useEffect(() => {
-    document.body.classList.add('dashboard-route');
-    return () => document.body.classList.remove('dashboard-route');
+  const showToast = useCallback((message: string, tone: AppToastTone = 'info') => {
+    setToast({ message, tone });
   }, []);
+
+  useEffect(() => {
+    if (!toast.message) return;
+    const timer = window.setTimeout(() => setToast({ message: '', tone: 'info' }), 5000);
+    return () => window.clearTimeout(timer);
+  }, [toast.message]);
+
+  const refreshAvailability = useCallback(async () => {
+    try {
+      const summary = await api.availability(filters);
+      setBookedSpaceIds(summary.booked_space_ids);
+      setMyBookedSpaceIds(summary.my_space_ids);
+    } catch {
+      setBookedSpaceIds([]);
+      setMyBookedSpaceIds([]);
+    }
+  }, [filters]);
 
   useEffect(() => {
     api.spaces().then((apiSpaces) => setSpaces(mergeApiSpacesWithLayoutFloors(apiSpaces))).catch(() => setSpaces(demoSpaces));
@@ -48,7 +73,21 @@ export default function DashboardPage() {
 
   useEffect(() => {
     api.recommendations(filters).then(setRecommendations).catch(() => setRecommendations([]));
-  }, [filters]);
+    void refreshAvailability();
+  }, [filters, refreshAvailability]);
+
+  useEffect(() => {
+    setSelected(null);
+    setToast({ message: '', tone: 'info' });
+  }, [filters.date]);
+
+  useEffect(() => {
+    if (authLoading || !user) {
+      setMyBookings([]);
+      return;
+    }
+    api.myBookings().then(setMyBookings).catch(() => setMyBookings([]));
+  }, [authLoading, user, filters.date]);
 
   useEffect(() => {
     if (!officeMenuOpen && !profileMenuOpen) return;
@@ -77,7 +116,11 @@ export default function DashboardPage() {
     [spaces, floorId, filters],
   );
 
-  /** Layout floors show every desk/room on the image; the rail list still uses `spaceType` via `visibleSpaces`. */
+  const availableMatchCount = useMemo(
+    () => visibleSpaces.filter((space) => !bookedSpaceIds.includes(space.id)).length,
+    [visibleSpaces, bookedSpaceIds],
+  );
+
   const mapSpaces = useMemo(() => {
     if (!floorLayoutForFloor(floorId)) return visibleSpaces;
     return spaces.filter(
@@ -88,12 +131,39 @@ export default function DashboardPage() {
     );
   }, [spaces, floorId, filters, visibleSpaces]);
 
+  const windowIso = useMemo(() => filtersToWindowIso(filters), [filters]);
   const selectedSpace = selected ? spaces.find((space) => space.id === selected.id) ?? selected : null;
   const selectedVisible = selectedSpace && selectedSpace.floor_id === floorId ? selectedSpace : null;
+  const weekendSelected = isWeekendDate(filters.date);
+  const selectedUserBooking = useMemo(
+    () => (selectedSpace ? resolveUserBooking(myBookings, selectedSpace, filters.date, windowIso) : null),
+    [selectedSpace, myBookings, filters.date, windowIso],
+  );
+  const selectedIsMine = Boolean(selectedUserBooking) || Boolean(selectedSpace && myBookedSpaceIds.includes(selectedSpace.id));
+  const selectedIsBooked = Boolean(selectedSpace && bookedSpaceIds.includes(selectedSpace.id) && !selectedIsMine);
+  const hasOtherDeskToday = Boolean(
+    user &&
+      selectedSpace?.type === 'hot_desk' &&
+      !selectedIsMine &&
+      userHasDeskOnDate(myBookings, spaces, filters.date, selectedSpace.id),
+  );
+
+  const bookedOnFloorCount = useMemo(
+    () => mapSpaces.filter((space) => bookedSpaceIds.includes(space.id)).length,
+    [mapSpaces, bookedSpaceIds],
+  );
+
+  const selectedAvailability: SpaceAvailabilityKind = weekendSelected
+    ? 'weekend'
+    : selectedIsMine
+      ? 'mine'
+      : selectedIsBooked
+        ? 'booked'
+        : 'available';
 
   function handleSelectSpace(space: Space) {
     setSelected(space);
-    setBookingAuthMessage('');
+    setToast({ message: '', tone: 'info' });
   }
 
   function handleFloorChange(newFloorId: number) {
@@ -116,19 +186,61 @@ export default function DashboardPage() {
     }
   }
 
-  async function confirmBooking() {
-    if (!selectedSpace) return;
+  async function performBooking() {
+    if (!selectedSpace || !user) return;
+    if (weekendSelected) {
+      showToast('Bookings are only available Monday to Friday.', 'error');
+      return;
+    }
+    if (selectedSpace.type === 'hot_desk' && userHasDeskOnDate(myBookings, spaces, filters.date, selectedSpace.id)) {
+      showToast('You already have a desk booked for this day. Cancel it before booking another.', 'error');
+      return;
+    }
+    const window = bookingWindowForSpace(selectedSpace.type, filters);
+    setBookingSubmitting(true);
     try {
+      try {
+        await api.refreshAccessToken();
+      } catch {
+        /* session may still be valid */
+      }
       await api.createBooking({
         space_id: selectedSpace.id,
         title: `MeetMi booking for ${selectedSpace.name}`,
-        start_time: `${filters.date}T${filters.start}:00`,
-        end_time: `${filters.date}T${filters.end}:00`,
-        attendee_count: filters.attendeeCount,
+        start_time: window.start_time,
+        end_time: window.end_time,
+        attendee_count: selectedSpace.type === 'hot_desk' ? 1 : filters.attendeeCount,
       });
-      setBookingOpen(false);
-    } catch {
-      setBookingOpen(false);
+      showToast(`${selectedSpace.name} booked successfully.`, 'success');
+      const bookings = await api.myBookings();
+      setMyBookings(bookings);
+      await refreshAvailability();
+    } catch (error) {
+      showToast(error instanceof Error ? error.message : 'Could not complete the booking. Try another time or space.', 'error');
+    } finally {
+      setBookingSubmitting(false);
+    }
+  }
+
+  async function cancelSelectedBooking() {
+    const booking =
+      selectedUserBooking ??
+      (selectedSpace ? resolveUserBooking(myBookings, selectedSpace, filters.date, windowIso) : null);
+    if (!booking) {
+      showToast('No active booking found for this space. Try refreshing or pick another date.', 'error');
+      return;
+    }
+    setCancelling(true);
+    try {
+      await api.cancelBooking(booking.id);
+      const bookings = await api.myBookings();
+      setMyBookings(bookings);
+      await refreshAvailability();
+      showToast('Booking cancelled.', 'success');
+    } catch (error) {
+      showToast(error instanceof Error ? error.message : 'Could not cancel this booking. Please try again.', 'error');
+    } finally {
+      setCancelling(false);
     }
   }
 
@@ -136,37 +248,49 @@ export default function DashboardPage() {
 
   function requestBooking() {
     if (authLoading) {
-      setBookingAuthMessage('Checking your account before booking.');
+      showToast('Checking your account before booking.', 'info');
+      return;
+    }
+    if (weekendSelected) {
+      showToast('Bookings are only available Monday to Friday.', 'error');
       return;
     }
     if (!user) {
-      setBookingAuthMessage('Please log in before booking this space.');
+      showToast('Please log in before booking this space.', 'error');
       return;
     }
-    setBookingAuthMessage('');
-    setBookingOpen(true);
+    if (selectedIsBooked || selectedIsMine) {
+      return;
+    }
+    if (hasOtherDeskToday) {
+      showToast('You already have a desk booked for this day. Cancel it before booking another.', 'error');
+      return;
+    }
+    void performBooking();
   }
-
-  const mapCard = (
-    <div className="dashboard-map-card">
-      <FloorPlan
-        spaces={mapSpaces}
-        selectedSpace={selectedVisible}
-        recommendedSpaceIds={recommendations.map((r) => r.space.id)}
-        onSelectSpace={handleSelectSpace}
-        floorId={floorId}
-        layout={floorLayoutForFloor(floorId) ?? null}
-      />
-    </div>
-  );
 
   const profileLinkClass = ({ isActive }: { isActive: boolean }) =>
     isActive ? 'dashboard-profile-link is-active' : 'dashboard-profile-link';
 
   return (
     <main className="dashboard-page">
+      <AppToast message={toast.message} tone={toast.tone} />
+
       <section className="dashboard-stage" aria-label="Apple Maps style workspace finder">
-        <div className="dashboard-map-layer">{mapCard}</div>
+        <div className="dashboard-map-layer">
+          <div className="dashboard-map-card">
+            <FloorPlan
+              spaces={mapSpaces}
+              selectedSpace={selectedVisible}
+              recommendedSpaceIds={recommendations.map((r) => r.space.id)}
+              bookedSpaceIds={bookedSpaceIds}
+              myBookedSpaceIds={myBookedSpaceIds}
+              onSelectSpace={handleSelectSpace}
+              floorId={floorId}
+              layout={floorLayoutForFloor(floorId) ?? null}
+            />
+          </div>
+        </div>
 
         <div className="dashboard-left-rail">
           <section className="dashboard-search-panel" aria-label="Workspace search summary">
@@ -264,7 +388,6 @@ export default function DashboardPage() {
 
               {officeMenuOpen ? (
                 <div id="dashboard-office-menu" className="dashboard-office-menu" role="region" aria-labelledby="dashboard-office-trigger">
-                  
                   <div className="dashboard-floor-list">
                     {demoFloors.map((floor) => (
                       <button
@@ -289,23 +412,27 @@ export default function DashboardPage() {
             <div className="dashboard-stat-grid" aria-label="Current search stats">
               <div className="dashboard-stat">
                 <MapPinned size={17} aria-hidden />
-                <strong>{visibleSpaces.length}</strong>
-                <span>Matches</span>
+                <strong>{availableMatchCount}</strong>
+                <span>Available</span>
               </div>
-              <div className="dashboard-stat">
-                <Sparkles size={17} aria-hidden />
-                <strong>{recommendations.length}</strong>
-                <span>Ranked</span>
-              </div>
+              <label className="dashboard-stat dashboard-date-filter">
+                <CalendarDays size={17} aria-hidden />
+                <span className="dashboard-date-filter-copy">
+                  <strong>{formatDashboardDate(filters.date)}</strong>
+                  <span>Date</span>
+                </span>
+                <input
+                  aria-label="Filter by booking date"
+                  type="date"
+                  min={nextWeekdayIso()}
+                  value={filters.date}
+                  onChange={(event) => setFilters((current) => updateFiltersDate(current, event.target.value))}
+                />
+              </label>
               <div className="dashboard-stat">
                 <Users size={17} aria-hidden />
-                <strong>{filters.attendeeCount}</strong>
-                <span>People</span>
-              </div>
-              <div className="dashboard-stat">
-                <CalendarDays size={17} aria-hidden />
-                <strong>{filters.start}</strong>
-                <span>Start</span>
+                <strong>{bookedOnFloorCount}</strong>
+                <span>Booked</span>
               </div>
             </div>
           </section>
@@ -317,9 +444,11 @@ export default function DashboardPage() {
             recommendations={recommendations}
             onRecommendationSelect={handleRecommendationSelect}
           />
+        </div>
 
-          {selectedSpace ? (
-            <section className="dashboard-panel dashboard-about-panel" aria-label={`About ${selectedSpace.name}`}>
+        {selectedSpace ? (
+          <aside className="dashboard-right-rail" aria-label={`About ${selectedSpace.name}`}>
+            <section className="dashboard-panel dashboard-about-panel">
               <div className="dashboard-about-header">
                 <div>
                   <p className="dashboard-label">About</p>
@@ -332,19 +461,22 @@ export default function DashboardPage() {
               <SpaceDetailsDrawer
                 space={selectedSpace}
                 onBook={requestBooking}
+                onCancel={() => void cancelSelectedBooking()}
+                availability={selectedAvailability}
+                isLoggedIn={Boolean(user)}
+                hint={
+                  hasOtherDeskToday
+                    ? 'You already have a desk booked today. Cancel your existing desk booking to switch.'
+                    : undefined
+                }
+                canBook={!hasOtherDeskToday}
+                cancelling={cancelling}
+                bookingSubmitting={bookingSubmitting}
               />
-              {bookingAuthMessage ? <p className="space-details-auth-message space-details-auth-message-inline">{bookingAuthMessage}</p> : null}
             </section>
-          ) : null}
-        </div>
+          </aside>
+        ) : null}
       </section>
-
-      <BookingModal
-        space={bookingOpen ? selectedSpace : null}
-        filters={filters}
-        onClose={() => setBookingOpen(false)}
-        onConfirm={confirmBooking}
-      />
     </main>
   );
 }

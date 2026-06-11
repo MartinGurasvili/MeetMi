@@ -9,6 +9,7 @@ interface Props {
   selectedSpace?: Space | null;
   recommendedSpaceIds?: number[];
   bookedSpaceIds?: number[];
+  myBookedSpaceIds?: number[];
   onSelectSpace: (space: Space) => void;
   floorId?: number;
   /** When set, renders background image + markers from layout; match placements via `space.layoutLocalId ?? space.id`. */
@@ -171,6 +172,7 @@ export default function FloorPlan({
   selectedSpace,
   recommendedSpaceIds = [],
   bookedSpaceIds = [],
+  myBookedSpaceIds = [],
   onSelectSpace,
   floorId,
   layout = null,
@@ -196,6 +198,7 @@ export default function FloorPlan({
   const dragRef = useRef<{ pointerId: number; clientX: number; clientY: number; viewBox: ViewBox } | null>(null);
   const recommended = useMemo(() => new Set(recommendedSpaceIds), [recommendedSpaceIds]);
   const booked = useMemo(() => new Set(bookedSpaceIds), [bookedSpaceIds]);
+  const mine = useMemo(() => new Set(myBookedSpaceIds), [myBookedSpaceIds]);
 
   useEffect(() => {
     setViewBox(shape.viewBox);
@@ -266,9 +269,13 @@ export default function FloorPlan({
 
   function markerState(space: Space) {
     if (selectedSpace?.id === space.id) return 'selected' as const;
-    if (recommended.has(space.id)) return 'recommended' as const;
+    if (mine.has(space.id)) return 'mine' as const;
     if (booked.has(space.id)) return 'booked' as const;
     return 'available' as const;
+  }
+
+  function isRecommended(space: Space) {
+    return recommended.has(space.id);
   }
 
   return (
@@ -284,6 +291,7 @@ export default function FloorPlan({
             <span>{spaces.length} visible spaces</span>
           </div>
         </div>
+       
       </div>
 
       <div className="dashboard-map-controls">
@@ -357,6 +365,7 @@ export default function FloorPlan({
                 x={x}
                 y={y}
                 state={markerState(space)}
+                isRecommended={isRecommended(space)}
                 onSelect={onSelectSpace}
               />
             ))}
@@ -377,6 +386,7 @@ export default function FloorPlan({
                   x={x}
                   y={y}
                   state={markerState(space)}
+                  isRecommended={isRecommended(space)}
                   onSelect={onSelectSpace}
                 />
               ))}

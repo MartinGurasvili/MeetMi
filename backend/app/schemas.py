@@ -10,6 +10,11 @@ def as_aware(value: datetime) -> datetime:
     return value
 
 
+def ensure_weekday(value: datetime) -> None:
+    if value.weekday() >= 5:
+        raise ValueError("Bookings are only available Monday to Friday")
+
+
 class TokenPair(BaseModel):
     access_token: str
     token_type: str = "bearer"
@@ -134,6 +139,7 @@ class BookingBase(BaseModel):
             raise ValueError("start_time cannot be in the past")
         if self.end_time <= self.start_time:
             raise ValueError("end_time must be after start_time")
+        ensure_weekday(self.start_time)
         return self
 
 
@@ -157,6 +163,8 @@ class BookingUpdate(BaseModel):
             raise ValueError("start_time cannot be in the past")
         if self.start_time and self.end_time and self.end_time <= self.start_time:
             raise ValueError("end_time must be after start_time")
+        if self.start_time:
+            ensure_weekday(self.start_time)
         return self
 
 
@@ -173,6 +181,25 @@ class BookingRead(BaseModel):
     updated_at: datetime
     space: SpaceRead | None = None
     model_config = ConfigDict(from_attributes=True)
+
+
+class AvailabilityWindow(BaseModel):
+    start_time: datetime
+    end_time: datetime
+
+    @model_validator(mode="after")
+    def validate_window(self):
+        self.start_time = as_aware(self.start_time)
+        self.end_time = as_aware(self.end_time)
+        if self.end_time <= self.start_time:
+            raise ValueError("end_time must be after start_time")
+        ensure_weekday(self.start_time)
+        return self
+
+
+class AvailabilitySummary(BaseModel):
+    booked_space_ids: list[int]
+    my_space_ids: list[int]
 
 
 class RecommendationRequest(BaseModel):
@@ -192,6 +219,7 @@ class RecommendationRequest(BaseModel):
             raise ValueError("start_time cannot be in the past")
         if self.end_time <= self.start_time:
             raise ValueError("end_time must be after start_time")
+        ensure_weekday(self.start_time)
         return self
 
 

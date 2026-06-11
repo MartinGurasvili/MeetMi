@@ -1,5 +1,6 @@
 import { useState } from 'react';
 import { CalendarDays, ChevronDown, ChevronUp, Clock, MapPin, Monitor, Users } from 'lucide-react';
+import { normalizeWeekdayDate, nextWeekdayIso, formatDeskDayLabel } from '../lib/dates';
 import type { Equipment, Filters, SpaceType } from '../types';
 
 interface Props {
@@ -16,6 +17,7 @@ const spaceTypes: Array<{ value: SpaceType; label: string }> = [
 export default function FilterPanel({ filters, equipment, onChange }: Props) {
   const [expanded, setExpanded] = useState(false);
   const update = <K extends keyof Filters>(key: K, value: Filters[K]) => onChange({ ...filters, [key]: value });
+  const updateDate = (value: string) => update('date', normalizeWeekdayDate(value));
 
   const toggleEquipment = (id: number) =>
     update(
@@ -40,7 +42,7 @@ export default function FilterPanel({ filters, equipment, onChange }: Props) {
           <span>
             <span className="dashboard-panel-title">Filters</span>
             <span className="dashboard-subtle">
-              {filters.spaceType === 'hot_desk' ? 'Hot desk' : 'Meeting room'} - {filters.start}-{filters.end}
+              {filters.spaceType === 'hot_desk' ? formatDeskDayLabel() : `${filters.start}–${filters.end}`}
             </span>
           </span>
         </span>
@@ -75,24 +77,42 @@ export default function FilterPanel({ filters, equipment, onChange }: Props) {
               <CalendarDays size={15} aria-hidden />
               Date
             </span>
-            <input className="dashboard-field" type="date" value={filters.date} onChange={(event) => update('date', event.target.value)} />
+            <input
+              className="dashboard-field"
+              type="date"
+              min={nextWeekdayIso()}
+              value={filters.date}
+              onChange={(event) => updateDate(event.target.value)}
+            />
           </label>
 
           <div className="dashboard-field-grid">
-            <label className="dashboard-field-label">
-              <span>
-                <Clock size={15} aria-hidden />
-                Start
-              </span>
-              <input className="dashboard-field" type="time" value={filters.start} onChange={(event) => update('start', event.target.value)} />
-            </label>
-            <label className="dashboard-field-label">
-              <span>
-                <Clock size={15} aria-hidden />
-                End
-              </span>
-              <input className="dashboard-field" type="time" value={filters.end} onChange={(event) => update('end', event.target.value)} />
-            </label>
+            {filters.spaceType === 'meeting_room' ? (
+              <>
+                <label className="dashboard-field-label">
+                  <span>
+                    <Clock size={15} aria-hidden />
+                    Start
+                  </span>
+                  <input className="dashboard-field" type="time" value={filters.start} onChange={(event) => update('start', event.target.value)} />
+                </label>
+                <label className="dashboard-field-label">
+                  <span>
+                    <Clock size={15} aria-hidden />
+                    End
+                  </span>
+                  <input className="dashboard-field" type="time" value={filters.end} onChange={(event) => update('end', event.target.value)} />
+                </label>
+              </>
+            ) : (
+              <div className="dashboard-field-label dashboard-field-label-span">
+                <span>
+                  <Clock size={15} aria-hidden />
+                  Duration
+                </span>
+                <p className="dashboard-all-day-copy">{formatDeskDayLabel()}</p>
+              </div>
+            )}
           </div>
 
           <div className="dashboard-field-grid">

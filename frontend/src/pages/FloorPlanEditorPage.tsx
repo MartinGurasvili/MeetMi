@@ -31,7 +31,7 @@ function clientToNorm(svg: SVGSVGElement, clientX: number, clientY: number, refW
   return { nx: clamp01(p.x / refW), ny: clamp01(p.y / refH) };
 }
 
-export default function FloorPlanEditorPage() {
+export default function FloorPlanEditorPage({ embedded = false }: { embedded?: boolean }) {
   const inputId = useId();
   const svgRef = useRef<SVGSVGElement | null>(null);
   const dragRef = useRef<{ id: number; startSvg: { x: number; y: number }; startPlacement: PlacementV1 } | null>(null);
@@ -185,8 +185,12 @@ export default function FloorPlanEditorPage() {
     URL.revokeObjectURL(url);
   }
 
+  const Wrapper = embedded ? 'div' : 'main';
+  const wrapperClass = embedded ? 'floor-editor-page floor-editor-page-embedded' : 'floor-editor-page';
+
   return (
-    <main className="floor-editor-page">
+    <Wrapper className={wrapperClass}>
+      {!embedded ? (
       <header className="floor-editor-header surface-panel">
         <div>
           <h1 className="floor-editor-title">Floor plan editor</h1>
@@ -209,6 +213,25 @@ export default function FloorPlanEditorPage() {
           </button>
         </div>
       </header>
+      ) : (
+        <div className="floor-editor-embedded-bar">
+          <p className="app-kicker">Floor layout tool</p>
+          <p className="floor-editor-sub">
+            Upload a floor plan, click to place desks or meeting rooms, drag to reposition, then export JSON.
+          </p>
+          <div className="floor-editor-header-actions">
+            <label htmlFor={inputId} className="floor-editor-btn floor-editor-btn-secondary">
+              <Upload size={16} aria-hidden />
+              Upload image
+            </label>
+            <input id={inputId} className="sr-only" type="file" accept="image/*" onChange={(e) => onFile(e.target.files?.[0] ?? null)} />
+            <button type="button" className="floor-editor-btn floor-editor-btn-primary" disabled={!background} onClick={exportJson}>
+              <Download size={16} aria-hidden />
+              Export JSON
+            </button>
+          </div>
+        </div>
+      )}
 
       <div className="floor-editor-body">
         <aside className="floor-editor-sidebar surface-panel">
@@ -342,6 +365,6 @@ export default function FloorPlanEditorPage() {
           )}
         </div>
       </div>
-    </main>
+    </Wrapper>
   );
 }

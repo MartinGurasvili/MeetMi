@@ -19,6 +19,18 @@ def get_current_user(authorization: str | None = Header(default=None), db: Sessi
     return user
 
 
+def get_optional_user(authorization: str | None = Header(default=None), db: Session = Depends(get_db)) -> User | None:
+    if not authorization or not authorization.startswith("Bearer "):
+        return None
+    user_id = decode_token(authorization.removeprefix("Bearer ").strip(), "access")
+    if not user_id:
+        return None
+    user = db.get(User, user_id)
+    if not user or not user.is_active:
+        return None
+    return user
+
+
 def get_admin_user(current_user: User = Depends(get_current_user), db: Session = Depends(get_db)) -> User:
     if current_user.role != UserRole.admin:
         log_audit(db, current_user.id, "permission_denied", "admin_route", None, "Admin-only endpoint access denied")

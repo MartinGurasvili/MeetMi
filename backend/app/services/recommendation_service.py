@@ -1,8 +1,9 @@
 from sqlalchemy import and_, select
 from sqlalchemy.orm import Session, selectinload
 
-from app.models import Booking, BookingStatus, Equipment, Space
+from app.models import Booking, BookingStatus, Equipment, Space, SpaceType
 from app.schemas import RecommendationRead, RecommendationRequest
+from app.services.booking_rules import booking_blocks_space
 
 
 def recommend_spaces(db: Session, request: RecommendationRequest) -> list[RecommendationRead]:
@@ -15,8 +16,12 @@ def recommend_spaces(db: Session, request: RecommendationRequest) -> list[Recomm
 
     ranked: list[RecommendationRead] = []
     for space in spaces:
-        conflict = db.execute(select(Booking.id).where(and_(Booking.space_id == space.id, Booking.status == BookingStatus.confirmed, Booking.start_time < request.end_time, Booking.end_time > request.start_time))).first()
-        if conflict:
+        bookings = db.execute(
+            select(Booking.start_time, Booking.end_time).where(
+                and_(Booking.space_id == space.id, Booking.status == BookingStatus.confirmed)
+            )
+        ).all()
+        if any(booking_blocks_space(space.type, start, end, request.start_time, request.end_time) for start, end in bookings):
             continue
         space_equipment = {item.id for item in space.equipment}
         if not required.issubset(space_equipment):

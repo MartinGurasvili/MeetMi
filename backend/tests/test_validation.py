@@ -14,3 +14,10 @@ def test_invalid_input_rejection_for_negative_attendees(future_window):
     start, end = future_window
     with pytest.raises(ValidationError):
         BookingCreate(space_id=1, title="Bad", start_time=start, end_time=end, attendee_count=0)
+
+
+def test_invalid_input_rejection_for_weekend_booking():
+    start = datetime(2026, 6, 13, 9, 0, tzinfo=timezone.utc)  # Saturday
+    end = datetime(2026, 6, 13, 10, 0, tzinfo=timezone.utc)
+    with pytest.raises(ValidationError):
+        BookingCreate(space_id=1, title="Weekend", start_time=start, end_time=end, attendee_count=1)

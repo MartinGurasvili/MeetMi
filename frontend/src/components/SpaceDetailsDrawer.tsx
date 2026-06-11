@@ -1,12 +1,51 @@
+import { NavLink } from 'react-router-dom';
 import { Monitor, Users, Wifi, Zap } from 'lucide-react';
 import type { Space } from '../types';
+
+export type SpaceAvailabilityKind = 'available' | 'booked' | 'mine' | 'weekend';
 
 interface Props {
   space: Space | null;
   onBook: () => void;
+  onCancel?: () => void;
+  availability: SpaceAvailabilityKind;
+  isLoggedIn: boolean;
+  hint?: string;
+  canBook?: boolean;
+  cancelling?: boolean;
+  bookingSubmitting?: boolean;
 }
 
-export default function SpaceDetailsDrawer({ space, onBook }: Props) {
+function availabilityCopy(space: Space, availability: SpaceAvailabilityKind) {
+  if (availability === 'available' && space.type === 'hot_desk') {
+    return 'Available for the full working day (9:00–17:00).';
+  }
+  if (availability === 'mine' && space.type === 'hot_desk') {
+    return 'You have this desk booked for the full day (9:00–17:00).';
+  }
+  if (availability === 'booked' && space.type === 'hot_desk') {
+    return 'Booked for the full day — cannot be reserved.';
+  }
+  const defaults: Record<SpaceAvailabilityKind, string> = {
+    available: 'Available for the selected time.',
+    booked: 'Booked for the selected time — cannot be reserved.',
+    mine: 'You have this space booked for the selected time.',
+    weekend: 'Weekends are not bookable — choose a weekday.',
+  };
+  return defaults[availability];
+}
+
+export default function SpaceDetailsDrawer({
+  space,
+  onBook,
+  onCancel,
+  availability,
+  isLoggedIn,
+  hint,
+  canBook = true,
+  cancelling = false,
+  bookingSubmitting = false,
+}: Props) {
   if (!space) return null;
 
   const typeLabel = space.type === 'hot_desk' ? 'Hot desk' : 'Meeting room';
@@ -19,6 +58,7 @@ export default function SpaceDetailsDrawer({ space, onBook }: Props) {
 
   return (
     <div className="space-details-root">
+
       <div className="space-details-hero">
         <img
           key={previewSrc}
@@ -33,6 +73,9 @@ export default function SpaceDetailsDrawer({ space, onBook }: Props) {
       </div>
 
       <div className="space-details-scroll">
+        <p className={`space-details-availability is-${availability}`}>{availabilityCopy(space, availability)}</p>
+        {hint ? <p className="space-details-hint">{hint}</p> : null}
+
         <div className="space-details-stats">
           <div className="space-details-stat">
             <Users size={17} aria-hidden />
@@ -72,9 +115,32 @@ export default function SpaceDetailsDrawer({ space, onBook }: Props) {
       </div>
 
       <div className="space-details-footer">
-        <button type="button" className="space-details-book" onClick={onBook}>
-          Quick book
-        </button>
+        {availability === 'mine' ? (
+          <button
+            type="button"
+            className="space-details-book space-details-book-cancel"
+            onClick={onCancel}
+            disabled={cancelling}
+          >
+            {cancelling ? 'Cancelling…' : 'Cancel booking'}
+          </button>
+        ) : availability === 'available' && isLoggedIn && canBook ? (
+          <button type="button" className="space-details-book" onClick={onBook} disabled={bookingSubmitting}>
+            {bookingSubmitting ? 'Booking…' : 'Quick book'}
+          </button>
+        ) : availability === 'available' && isLoggedIn ? (
+          <button type="button" className="space-details-book space-details-book-disabled" disabled>
+            Unavailable
+          </button>
+        ) : availability === 'available' ? (
+          <NavLink to="/login" className="space-details-book space-details-book-login">
+            Log in to book
+          </NavLink>
+        ) : (
+          <button type="button" className="space-details-book space-details-book-disabled" disabled>
+            {availability === 'booked' ? 'Booked — unavailable' : 'Unavailable'}
+          </button>
+        )}
       </div>
     </div>
   );

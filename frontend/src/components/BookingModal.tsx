@@ -1,6 +1,7 @@
 import { useEffect } from 'react';
 import { CalendarCheck, Clock, Users, X } from 'lucide-react';
 import type { Filters, Space } from '../types';
+import { formatDeskDayLabel } from '../lib/dates';
 
 interface Props {
   space: Space | null;
@@ -20,6 +21,8 @@ export default function BookingModal({ space, filters, onClose, onConfirm }: Pro
   }, [space, onClose]);
 
   if (!space) return null;
+
+  const timeLabel = space.type === 'hot_desk' ? formatDeskDayLabel() : `${filters.start}–${filters.end}`;
 
   return (
     <div
@@ -57,16 +60,21 @@ export default function BookingModal({ space, filters, onClose, onConfirm }: Pro
           </div>
           <div className="flex items-center gap-3">
             <Clock size={17} className="text-[var(--color-accent)]" aria-hidden />
-            <span className="text-sm font-bold text-[var(--color-text)]">
-              {filters.start}-{filters.end}
-            </span>
+            <span className="text-sm font-bold text-[var(--color-text)]">{timeLabel}</span>
           </div>
-          <div className="flex items-center gap-3">
-            <Users size={17} className="text-[var(--color-info)]" aria-hidden />
-            <span className="text-sm font-bold text-[var(--color-text)]">
-              {filters.attendeeCount} {filters.attendeeCount === 1 ? 'attendee' : 'attendees'}
-            </span>
-          </div>
+          {space.type === 'meeting_room' ? (
+            <div className="flex items-center gap-3">
+              <Users size={17} className="text-[var(--color-info)]" aria-hidden />
+              <span className="text-sm font-bold text-[var(--color-text)]">
+                {filters.attendeeCount} {filters.attendeeCount === 1 ? 'attendee' : 'attendees'}
+              </span>
+            </div>
+          ) : (
+            <div className="flex items-center gap-3 text-sm font-semibold text-[var(--color-muted)]">
+              <Users size={17} className="text-[var(--color-info)]" aria-hidden />
+              <span>One desk per person per day</span>
+            </div>
+          )}
         </div>
 
         <div className="mt-5 flex flex-col-reverse gap-3 sm:flex-row sm:justify-end">

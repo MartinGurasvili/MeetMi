@@ -8,9 +8,11 @@ from app.data.layout_manifest import LAYOUT_SPACES
 from app.database import Base, SessionLocal, engine
 from app.models import AuditLog, Booking, Equipment, OfficeFloor, Space, SpaceEquipment, SpaceType, User, UserRole
 from app.security.password import hash_password
+from app.services.booking_rules import desk_day_window
 
 EQUIPMENT = ["monitor", "docking station", "standing desk", "whiteboard", "projector", "video conferencing", "speakers", "accessibility access"]
 BOOKING_COUNT = 220
+OVERFLOW_EMAIL = "demo@meetmi.example.com"
 
 DEMO_USERS = [
     {"email": "admin@meetmi.example.com", "full_name": "MeetMi Admin", "password": "AdminPass123", "role": UserRole.admin, "preferred_zone": "Manchester West"},
@@ -18,6 +20,7 @@ DEMO_USERS = [
     {"email": "user@meetmi.example.com", "full_name": "Demo User", "password": "UserPass123", "role": UserRole.user, "preferred_zone": "London Central"},
     {"email": "alex@meetmi.example.com", "full_name": "Alex Morgan", "password": "UserPass123", "role": UserRole.user, "preferred_zone": "Manchester East"},
     {"email": "sam@meetmi.example.com", "full_name": "Sam Taylor", "password": "UserPass123", "role": UserRole.user, "preferred_zone": "London West"},
+    {"email": OVERFLOW_EMAIL, "full_name": "Demo Overflow", "password": "UserPass123", "role": UserRole.user, "preferred_zone": "Manchester Central"},
 ]
 
 FLOORS = [
@@ -111,29 +114,40 @@ def next_weekdays(days: int = 60) -> list[datetime]:
 def seed_bookings(db: Session, users: list[User], spaces: list[Space]) -> None:
     rng = Random(42)
     bookable_spaces = [space for space in spaces if space.is_active]
-    user_cycle = [user for user in users if user.role == UserRole.user]
+    user_cycle = [user for user in users if user.role == UserRole.user and user.email != OVERFLOW_EMAIL]
     if not bookable_spaces or not user_cycle:
         return
 
     starts = [9, 10, 11, 13, 14, 15, 16]
     existing: dict[int, list[tuple[datetime, datetime]]] = {}
+    user_desk_days: dict[int, set] = {user.id: set() for user in user_cycle}
     bookings: list[Booking] = []
     days = next_weekdays()
 
     attempts = 0
-    while len(bookings) < BOOKING_COUNT and attempts < BOOKING_COUNT * 20:
+    while len(bookings) < BOOKING_COUNT and attempts < BOOKING_COUNT * 30:
         attempts += 1
         day = days[attempts % len(days)]
         space = bookable_spaces[rng.randrange(len(bookable_spaces))]
-        hour = starts[rng.randrange(len(starts))]
-        duration = 1 if space.type == SpaceType.hot_desk else rng.choice([1, 1, 2])
-        start = day.replace(hour=hour)
-        end = start + timedelta(hours=duration)
+        user = user_cycle[len(bookings) % len(user_cycle)]
+
+        if space.type == SpaceType.hot_desk:
+            start, end = desk_day_window(day)
+            if day.date() in user_desk_days[user.id]:
+                continue
+        else:
+            hour = starts[rng.randrange(len(starts))]
+            duration = rng.choice([1, 1, 2])
+            start = day.replace(hour=hour)
+            end = start + timedelta(hours=duration)
+
         windows = existing.setdefault(space.id, [])
         if any(start < booked_end and end > booked_start for booked_start, booked_end in windows):
             continue
         windows.append((start, end))
-        user = user_cycle[len(bookings) % len(user_cycle)]
+        if space.type == SpaceType.hot_desk:
+            user_desk_days[user.id].add(day.date())
+
         title_prefix = "Desk booking" if space.type == SpaceType.hot_desk else "Room booking"
         bookings.append(
             Booking(
@@ -149,6 +163,57 @@ def seed_bookings(db: Session, users: list[User], spaces: list[Space]) -> None:
     db.add_all(bookings)
 
 
+def seed_overflow_bookings(db: Session, users: list[User], spaces: list[Space]) -> None:
+    """Extra dense bookings for the demo overflow user — seed-only, bypasses live booking rules."""
+    overflow = next((user for user in users if user.email == OVERFLOW_EMAIL), None)
+    if not overflow:
+        return
+
+    rng = Random(99)
+    days = next_weekdays(30)[:12]
+    desks = [space for space in spaces if space.type == SpaceType.hot_desk and space.is_active]
+    rooms = [space for space in spaces if space.type == SpaceType.meeting_room and space.is_active]
+    if not desks or not rooms:
+        return
+
+    bookings: list[Booking] = []
+    used_windows: dict[int, list[tuple[datetime, datetime]]] = {}
+
+    def can_book(space_id: int, start: datetime, end: datetime) -> bool:
+        windows = used_windows.setdefault(space_id, [])
+        return not any(start < booked_end and end > booked_start for booked_start, booked_end in windows)
+
+    def add_booking(space: Space, day: datetime, start: datetime, end: datetime, title: str, attendees: int) -> None:
+        if not can_book(space.id, start, end):
+            return
+        used_windows[space.id].append((start, end))
+        bookings.append(
+            Booking(
+                user_id=overflow.id,
+                space_id=space.id,
+                title=title,
+                start_time=start,
+                end_time=end,
+                attendee_count=attendees,
+            )
+        )
+
+    for index, day in enumerate(days):
+        for offset in range(2):
+            desk = desks[(index * 2 + offset) % len(desks)]
+            start, end = desk_day_window(day)
+            add_booking(desk, day, start, end, f"Overflow desk: {desk.name}", 1)
+
+        for slot in range(3):
+            room = rooms[(index * 3 + slot) % len(rooms)]
+            hour = [9, 13, 15][slot]
+            start = day.replace(hour=hour)
+            end = start + timedelta(hours=rng.choice([1, 2]))
+            add_booking(room, day, start, end, f"Overflow room: {room.name}", min(room.capacity, rng.choice([3, 4, 6, 8])))
+
+    db.add_all(bookings)
+
+
 def seed() -> None:
     Base.metadata.create_all(bind=engine)
     db = SessionLocal()
@@ -156,6 +221,7 @@ def seed() -> None:
         users = seed_users(db)
         spaces = seed_floors_spaces(db)
         seed_bookings(db, users, spaces)
+        seed_overflow_bookings(db, users, spaces)
         db.commit()
     finally:
         db.close()
