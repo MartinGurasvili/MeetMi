@@ -78,5 +78,7 @@ jobs:
       - name: Run Playwright E2E
         working-directory: frontend
         env:
+          CI: true
           VITE_API_URL: http://localhost:8000/api
+          PLAYWRIGHT_API_URL: http://localhost:8000/api
         run: npm run test:e2e
