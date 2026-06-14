@@ -1,6 +1,11 @@
-# MeetMi
 
-![MeetMi app icon](docs/assets/meetmi-icon.png)
+<h1 align="center">MeetMi</h1>
+
+<div align="center">
+
+<img width="200" height="200" alt="cas" src="docs/assets/meetmi-icon.png">
+</div>
+
 
 **Book the right desk or meeting room in seconds.**
 
@@ -24,19 +29,7 @@ Full credential list: [docs/DEMO_CREDENTIALS.md](docs/DEMO_CREDENTIALS.md)
 - **Admin console** — Manage all bookings, register floors, and place desks/rooms on floor-plan images.
 - **Secure by design** — JWT + HttpOnly refresh cookies, RBAC, overlap detection, audit logging.
 
-## Screenshots
 
-| Dashboard & floor plan | Filters & recommendations |
-|---|---|
-| ![Dashboard](docs/assets/app/02-dashboard-floorplan.png) | ![Recommendations](docs/assets/app/03-filters-recommendations.png) |
-
-| Space details & booking | My bookings |
-|---|---|
-| ![Space details](docs/assets/app/04-space-details.png) | ![My bookings](docs/assets/app/06-my-bookings.png) |
-
-| Admin console |
-|---|
-| ![Admin](docs/assets/app/07-admin-dashboard.png) |
 
 ## Architecture
 
