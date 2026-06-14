@@ -11,7 +11,8 @@ import { demoEquipment, demoFloors, demoSpaces, mergeApiSpacesWithLayoutFloors }
 import { floorLayoutForFloor } from '../data/floorLayoutRegistry';
 import { resolveUserBooking, userHasDeskOnDate } from '../lib/bookings';
 import { bookingWindowForSpace, filtersToWindowIso, formatDashboardDate, isWeekendDate, nextWeekdayIso, normalizeWeekdayDate } from '../lib/dates';
-import type { Booking, Filters, Recommendation, Space } from '../types';
+import { parsedMeetingToFilters } from '../lib/ics';
+import type { Booking, Filters, ParsedIcsMeeting, Recommendation, Space } from '../types';
 
 const initialFilters: Filters = {
   date: nextWeekdayIso(),
@@ -40,6 +41,7 @@ export default function DashboardPage() {
   const [selected, setSelected] = useState<Space | null>(null);
   const [toast, setToast] = useState<{ message: string; tone: AppToastTone }>({ message: '', tone: 'info' });
   const [bookingSubmitting, setBookingSubmitting] = useState(false);
+  const [timelineRefreshKey, setTimelineRefreshKey] = useState(0);
   const [cancelling, setCancelling] = useState(false);
   const [officeMenuOpen, setOfficeMenuOpen] = useState(false);
   const [profileMenuOpen, setProfileMenuOpen] = useState(false);
@@ -186,7 +188,7 @@ export default function DashboardPage() {
     }
   }
 
-  async function performBooking() {
+  async function performBooking(startIso?: string, endIso?: string) {
     if (!selectedSpace || !user) return;
     if (weekendSelected) {
       showToast('Bookings are only available Monday to Friday.', 'error');
@@ -196,7 +198,10 @@ export default function DashboardPage() {
       showToast('You already have a desk booked for this day. Cancel it before booking another.', 'error');
       return;
     }
-    const window = bookingWindowForSpace(selectedSpace.type, filters);
+    const window =
+      startIso && endIso
+        ? { start_time: startIso, end_time: endIso }
+        : bookingWindowForSpace(selectedSpace.type, filters);
     setBookingSubmitting(true);
     try {
       try {
@@ -215,6 +220,7 @@ export default function DashboardPage() {
       const bookings = await api.myBookings();
       setMyBookings(bookings);
       await refreshAvailability();
+      setTimelineRefreshKey((value) => value + 1);
     } catch (error) {
       showToast(error instanceof Error ? error.message : 'Could not complete the booking. Try another time or space.', 'error');
     } finally {
@@ -236,6 +242,7 @@ export default function DashboardPage() {
       const bookings = await api.myBookings();
       setMyBookings(bookings);
       await refreshAvailability();
+      setTimelineRefreshKey((value) => value + 1);
       showToast('Booking cancelled.', 'success');
     } catch (error) {
       showToast(error instanceof Error ? error.message : 'Could not cancel this booking. Please try again.', 'error');
@@ -245,6 +252,18 @@ export default function DashboardPage() {
   }
 
   const selectedFloor = demoFloors.find((floor) => floor.id === floorId);
+
+  function handleIcsParsed(meeting: ParsedIcsMeeting) {
+    const parsed = parsedMeetingToFilters(meeting);
+    setFilters((current) => ({
+      ...current,
+      ...parsed,
+      requiredEquipmentIds: current.requiredEquipmentIds,
+      optionalEquipmentIds: current.optionalEquipmentIds,
+      preferredZone: current.preferredZone,
+    }));
+    showToast(`Looking for rooms for "${meeting.summary}".`, 'info');
+  }
 
   function requestBooking() {
     if (authLoading) {
@@ -443,6 +462,7 @@ export default function DashboardPage() {
             onFiltersChange={setFilters}
             recommendations={recommendations}
             onRecommendationSelect={handleRecommendationSelect}
+            onIcsParsed={handleIcsParsed}
           />
         </div>
 
@@ -461,6 +481,7 @@ export default function DashboardPage() {
               <SpaceDetailsDrawer
                 space={selectedSpace}
                 onBook={requestBooking}
+                onBookRange={(startIso, endIso) => void performBooking(startIso, endIso)}
                 onCancel={() => void cancelSelectedBooking()}
                 availability={selectedAvailability}
                 isLoggedIn={Boolean(user)}
@@ -472,6 +493,8 @@ export default function DashboardPage() {
                 canBook={!hasOtherDeskToday}
                 cancelling={cancelling}
                 bookingSubmitting={bookingSubmitting}
+                bookingDate={filters.date}
+                timelineRefreshKey={timelineRefreshKey}
               />
             </section>
           </aside>

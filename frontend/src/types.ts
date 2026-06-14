@@ -8,6 +8,8 @@ export interface Recommendation { space: Space; score: number; explanation: stri
 export interface User { id: number; email: string; full_name: string; role: 'user' | 'admin'; preferred_zone?: string | null }
 export interface Filters { date: string; start: string; end: string; spaceType: SpaceType; attendeeCount: number; requiredEquipmentIds: number[]; optionalEquipmentIds: number[]; preferredZone: string }
 export interface AvailabilitySummary { booked_space_ids: number[]; my_space_ids: number[] }
+export interface RoomDayBooking { start_time: string; end_time: string; mine: boolean }
+export interface ParsedIcsMeeting { summary: string; date: string; start: string; end: string; attendeeCount: number }
 export interface AdminBookingRow { id: number; title: string; user_email: string; space_name: string; start_time: string; end_time: string; status: BookingStatus }
 
 /** v1 floor layout export: link to app spaces via Space.id === PlacementV1.localId */

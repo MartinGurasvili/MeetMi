@@ -1,5 +1,5 @@
 import { filtersToWindowIso } from '../lib/dates';
-import type { AdminBookingRow, AvailabilitySummary, Booking, Equipment, Filters, OfficeFloor, Recommendation, Space, SpaceType, User } from '../types';
+import type { AdminBookingRow, AvailabilitySummary, Booking, Equipment, Filters, OfficeFloor, Recommendation, RoomDayBooking, Space, SpaceType, User } from '../types';
 
 const API_URL = import.meta.env.VITE_API_URL ?? 'http://localhost:8000/api';
 let accessToken: string | null = null;
@@ -71,6 +71,9 @@ export const api = {
       method: 'POST',
       body: JSON.stringify(filtersToWindowIso(filters)),
     });
+  },
+  roomDayBookings(spaceId: number, date: string) {
+    return request<RoomDayBooking[]>(`/spaces/${spaceId}/day-bookings?date=${encodeURIComponent(date)}`);
   },
   bookedSpaceIds(filters: Pick<Filters, 'date' | 'start' | 'end'>) {
     return request<number[]>('/spaces/booked-ids', {

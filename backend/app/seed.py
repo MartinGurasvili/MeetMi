@@ -163,6 +163,49 @@ def seed_bookings(db: Session, users: list[User], spaces: list[Space]) -> None:
     db.add_all(bookings)
 
 
+def seed_meeting_room_slots(db: Session, users: list[User], spaces: list[Space]) -> None:
+    """Deterministic 1-hour slot bookings: 2 per weekday for a subset of meeting rooms."""
+    rng = Random(77)
+    user_cycle = [user for user in users if user.role == UserRole.user and user.email != OVERFLOW_EMAIL]
+    rooms = [space for space in spaces if space.type == SpaceType.meeting_room and space.is_active]
+    if not rooms or not user_cycle:
+        return
+
+    sample_rooms = sorted(rooms, key=lambda space: space.id)[: max(4, len(rooms) // 3)]
+    days = next_weekdays(15)
+    starts = [9, 10, 11, 13, 14, 15, 16]
+    existing: dict[int, list[tuple[datetime, datetime]]] = {}
+    bookings: list[Booking] = []
+
+    for day in days:
+        for room in sample_rooms:
+            slots_created = 0
+            attempts = 0
+            while slots_created < 2 and attempts < 20:
+                attempts += 1
+                hour = starts[rng.randrange(len(starts))]
+                start = day.replace(hour=hour)
+                end = start + timedelta(hours=1)
+                windows = existing.setdefault(room.id, [])
+                if any(start < booked_end and end > booked_start for booked_start, booked_end in windows):
+                    continue
+                windows.append((start, end))
+                user = user_cycle[rng.randrange(len(user_cycle))]
+                bookings.append(
+                    Booking(
+                        user_id=user.id,
+                        space_id=room.id,
+                        title=f"Slot booking: {room.name}",
+                        start_time=start,
+                        end_time=end,
+                        attendee_count=min(room.capacity, rng.choice([2, 3, 4, 6])),
+                    )
+                )
+                slots_created += 1
+
+    db.add_all(bookings)
+
+
 def seed_overflow_bookings(db: Session, users: list[User], spaces: list[Space]) -> None:
     """Extra dense bookings for the demo overflow user — seed-only, bypasses live booking rules."""
     overflow = next((user for user in users if user.email == OVERFLOW_EMAIL), None)
@@ -221,6 +264,7 @@ def seed() -> None:
         users = seed_users(db)
         spaces = seed_floors_spaces(db)
         seed_bookings(db, users, spaces)
+        seed_meeting_room_slots(db, users, spaces)
         seed_overflow_bookings(db, users, spaces)
         db.commit()
     finally:

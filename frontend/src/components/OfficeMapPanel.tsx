@@ -1,5 +1,6 @@
-import type { Equipment, Filters, Recommendation } from '../types';
+import type { Equipment, Filters, ParsedIcsMeeting, Recommendation } from '../types';
 import FilterPanel from './FilterPanel';
+import IcsRecommender from './IcsRecommender';
 import RecommendationPanel from './RecommendationPanel';
 
 interface OfficeMapPanelProps {
@@ -8,6 +9,7 @@ interface OfficeMapPanelProps {
   onFiltersChange: (filters: Filters) => void;
   recommendations: Recommendation[];
   onRecommendationSelect: (spaceId: number) => void;
+  onIcsParsed: (meeting: ParsedIcsMeeting) => void;
 }
 
 export default function OfficeMapPanel({
@@ -16,9 +18,14 @@ export default function OfficeMapPanel({
   onFiltersChange,
   recommendations,
   onRecommendationSelect,
+  onIcsParsed,
 }: OfficeMapPanelProps) {
   return (
     <aside className="dashboard-control-stack">
+      <section className="dashboard-panel">
+        <IcsRecommender onIcsParsed={onIcsParsed} />
+      </section>
+
       <section className="dashboard-panel">
         <RecommendationPanel recommendations={recommendations} onSelect={onRecommendationSelect} />
       </section>

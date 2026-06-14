@@ -33,7 +33,17 @@ def normalize_booking_window(space_type: SpaceType, start_time: datetime, end_ti
     return start_time, end_time
 
 
+def ensure_aware(value: datetime) -> datetime:
+    if value.tzinfo is None:
+        return value.replace(tzinfo=timezone.utc)
+    return value.astimezone(timezone.utc)
+
+
 def times_overlap(start_a: datetime, end_a: datetime, start_b: datetime, end_b: datetime) -> bool:
+    start_a = ensure_aware(start_a)
+    end_a = ensure_aware(end_a)
+    start_b = ensure_aware(start_b)
+    end_b = ensure_aware(end_b)
     return start_a < end_b and end_a > start_b
 
 

@@ -18,6 +18,10 @@ export default defineConfig({
         command: 'npm run dev -- --host 127.0.0.1',
         url: baseURL,
         reuseExistingServer: !process.env.CI,
+        env: {
+          ...process.env,
+          VITE_API_URL: process.env.VITE_API_URL ?? 'http://127.0.0.1:8000/api',
+        },
       },
   projects: [
     {

@@ -1,13 +1,13 @@
-from datetime import datetime
+from datetime import date, datetime, time, timezone
 
-from fastapi import APIRouter, Depends, HTTPException, status
+from fastapi import APIRouter, Depends, HTTPException, Query, status
 from sqlalchemy import and_, select
 from sqlalchemy.orm import Session, selectinload
 
 from app.database import get_db
 from app.dependencies import get_optional_user
-from app.models import Booking, BookingStatus, Equipment, OfficeFloor, Space, User
-from app.schemas import AvailabilitySummary, AvailabilityWindow, EquipmentRead, OfficeFloorRead, SpaceRead
+from app.models import Booking, BookingStatus, Equipment, OfficeFloor, Space, SpaceType, User
+from app.schemas import AvailabilitySummary, AvailabilityWindow, EquipmentRead, OfficeFloorRead, RoomDayBooking, SpaceRead
 from app.services.booking_rules import booking_blocks_space, day_end, as_utc_day_start
 
 router = APIRouter(tags=["spaces"])
@@ -77,6 +77,48 @@ def space_availability_window(
     user: User | None = Depends(get_optional_user),
 ):
     return _summarize_availability(_availability_rows(db, payload), payload, user)
+
+
+@router.get("/spaces/{space_id}/day-bookings", response_model=list[RoomDayBooking])
+def space_day_bookings(
+    space_id: int,
+    booking_date: str = Query(..., alias="date", pattern=r"^\d{4}-\d{2}-\d{2}$"),
+    db: Session = Depends(get_db),
+    user: User | None = Depends(get_optional_user),
+):
+    space = db.get(Space, space_id)
+    if not space or not space.is_active:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Space not found")
+    if space.type != SpaceType.meeting_room:
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Day bookings are only available for meeting rooms")
+
+    try:
+        year, month, day = (int(part) for part in booking_date.split("-"))
+        day_start = datetime.combine(date(year, month, day), time.min, tzinfo=timezone.utc)
+    except ValueError as exc:
+        raise HTTPException(status_code=status.HTTP_422_UNPROCESSABLE_ENTITY, detail="Invalid date") from exc
+
+    day_finish = day_end(day_start)
+    rows = db.execute(
+        select(Booking.start_time, Booking.end_time, Booking.user_id)
+        .where(
+            and_(
+                Booking.space_id == space_id,
+                Booking.status == BookingStatus.confirmed,
+                Booking.start_time < day_finish,
+                Booking.end_time > day_start,
+            )
+        )
+        .order_by(Booking.start_time)
+    ).all()
+    return [
+        RoomDayBooking(
+            start_time=booking_start,
+            end_time=booking_end,
+            mine=bool(user and user_id == user.id),
+        )
+        for booking_start, booking_end, user_id in rows
+    ]
 
 
 @router.get("/spaces/{space_id}/availability")

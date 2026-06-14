@@ -202,6 +202,12 @@ class AvailabilitySummary(BaseModel):
     my_space_ids: list[int]
 
 
+class RoomDayBooking(BaseModel):
+    start_time: datetime
+    end_time: datetime
+    mine: bool = False
+
+
 class RecommendationRequest(BaseModel):
     start_time: datetime
     end_time: datetime

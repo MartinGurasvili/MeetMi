@@ -1,5 +1,6 @@
 import { NavLink } from 'react-router-dom';
 import { Monitor, Users, Wifi, Zap } from 'lucide-react';
+import MeetingRoomTimeline from './MeetingRoomTimeline';
 import type { Space } from '../types';
 
 export type SpaceAvailabilityKind = 'available' | 'booked' | 'mine' | 'weekend';
@@ -7,6 +8,7 @@ export type SpaceAvailabilityKind = 'available' | 'booked' | 'mine' | 'weekend';
 interface Props {
   space: Space | null;
   onBook: () => void;
+  onBookRange?: (startIso: string, endIso: string) => void;
   onCancel?: () => void;
   availability: SpaceAvailabilityKind;
   isLoggedIn: boolean;
@@ -14,6 +16,8 @@ interface Props {
   canBook?: boolean;
   cancelling?: boolean;
   bookingSubmitting?: boolean;
+  bookingDate?: string;
+  timelineRefreshKey?: number;
 }
 
 function availabilityCopy(space: Space, availability: SpaceAvailabilityKind) {
@@ -38,6 +42,7 @@ function availabilityCopy(space: Space, availability: SpaceAvailabilityKind) {
 export default function SpaceDetailsDrawer({
   space,
   onBook,
+  onBookRange,
   onCancel,
   availability,
   isLoggedIn,
@@ -45,6 +50,8 @@ export default function SpaceDetailsDrawer({
   canBook = true,
   cancelling = false,
   bookingSubmitting = false,
+  bookingDate,
+  timelineRefreshKey = 0,
 }: Props) {
   if (!space) return null;
 
@@ -112,6 +119,16 @@ export default function SpaceDetailsDrawer({
             ))}
           </div>
         </div>
+
+        {space.type === 'meeting_room' && bookingDate && onBookRange ? (
+          <MeetingRoomTimeline
+            spaceId={space.id}
+            date={bookingDate}
+            onBookRange={onBookRange}
+            bookingSubmitting={bookingSubmitting}
+            refreshKey={timelineRefreshKey}
+          />
+        ) : null}
       </div>
 
       <div className="space-details-footer">

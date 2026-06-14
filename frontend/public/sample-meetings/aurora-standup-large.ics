@@ -1,0 +1,26 @@
+BEGIN:VCALENDAR
+VERSION:2.0
+PRODID:-//MeetMi//ICS Sample//EN
+CALSCALE:GREGORIAN
+METHOD:PUBLISH
+BEGIN:VEVENT
+UID:meetmi-aurora-large-001@meetmi.example.com
+DTSTAMP:20260616T100000Z
+DTSTART:20260617T100000Z
+DTEND:20260617T110000Z
+SUMMARY:Aurora Core AI team - Daily Stand-up (Large)
+LOCATION:MeetMi London Office
+DESCRIPTION:Larger stand-up for a bigger meeting room.
+ORGANIZER;CN=Neelam Bhandari:mailto:neelam.bhandari@example.com
+ATTENDEE;ROLE=REQ-PARTICIPANT;CN=Neelam Bhandari:mailto:neelam.bhandari@example.com
+ATTENDEE;ROLE=REQ-PARTICIPANT;CN=Conor Henderson:mailto:conor.henderson@example.com
+ATTENDEE;ROLE=REQ-PARTICIPANT;CN=Martin Gurasvili:mailto:martin.gurasvili@example.com
+ATTENDEE;ROLE=REQ-PARTICIPANT;CN=Michal Gutowski:mailto:michal.gutowski@example.com
+ATTENDEE;ROLE=REQ-PARTICIPANT;CN=Daniel Dray:mailto:daniel.dray@example.com
+ATTENDEE;ROLE=REQ-PARTICIPANT;CN=Ady Buxton:mailto:ady.buxton@example.com
+ATTENDEE;ROLE=REQ-PARTICIPANT;CN=Piotr Cwalina:mailto:piotr.cwalina@example.com
+ATTENDEE;ROLE=REQ-PARTICIPANT;CN=Simon Rees:mailto:simon.rees@example.com
+STATUS:CONFIRMED
+TRANSP:OPAQUE
+END:VEVENT
+END:VCALENDAR
