@@ -5,8 +5,9 @@ __pycache__/
 *.py[cod]
 .pytest_cache/
 .venv/
+docs/
 backend/.venv/
-backend/meetmi.db
+# Seeded SQLite database committed for assignment marker (see docs/Task2-Secure-Application.md)
 
 # Node
 node_modules/
@@ -19,3 +20,7 @@ frontend/tsconfig.tsbuildinfo
 .env
 backend/.env
 frontend/.env
+docs.zip
+backend/meetmi.db
+frontend/e2e/app-screenshots.spec.ts
+frontend/e2e/devops-evidence.spec.ts
