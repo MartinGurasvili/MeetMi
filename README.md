@@ -2,61 +2,71 @@
 
 ![MeetMi app icon](docs/assets/meetmi-icon.png)
 
-MeetMi is an office space booking platform for **hot desks** and **meeting rooms**. Employees explore an interactive floor plan, filter by time and requirements, and book spaces with conflict-safe scheduling. An admin surface manages floors, equipment, and bookings; a recommendation engine suggests suitable spaces from availability and preferences.
+**Book the right desk or meeting room in seconds.**
 
-## What it does
+MeetMi is an office space booking platform with interactive floor plans, smart recommendations, and admin tooling. Explore Manchester and London offices on a pan/zoom map, filter by time and equipment, and book with conflict-safe scheduling.
 
-- **Dashboard** — Apple Maps–style dark UI with pan/zoom floor plans, office picker, filters, and inline space details.
-- **Floor plans** — Built-in SVG layouts for demo offices, or **imported layouts** from JSON (uploaded image + normalized desk/room positions). A dev-only editor at `/dev/floor-editor` exports layout files consumed by the app.
-- **Booking** — JWT auth with short-lived access tokens and HttpOnly refresh cookies; overlap checks prevent double bookings.
-- **Recommendations** — Ranks spaces by capacity, zone, equipment, and availability for the selected slot.
-- **Admin** — Floors, spaces, equipment, bookings, audit logs, and image-prompt helpers (GenAI hooks without paid API calls in the default path).
+| | |
+|---|---|
+| **Live demo** | http://meetmi-dev-alb-1718430491.eu-west-2.elb.amazonaws.com |
+| **User login** | `user@meetmi.example.com` / `UserPass123` |
+| **Admin login** | `admin@meetmi.example.com` / `AdminPass123` |
+
+Full credential list: [docs/DEMO_CREDENTIALS.md](docs/DEMO_CREDENTIALS.md)
+
+## Features
+
+- **Interactive floor plan** — Apple Maps–style dark UI with pan/zoom, colour-coded availability, and inline space details.
+- **Hot desk booking** — All-day desk reservations with one booking per person per day.
+- **Meeting room slots** — Vertical 30-minute timeline in the side panel; pick a free window and book.
+- **ICS invite recommender** — Drag an `.ics` calendar file into the Recommendations panel to auto-fill time, attendees, and surface matching rooms.
+- **Smart recommendations** — Ranks spaces by capacity fit, zone preference, equipment, and availability.
+- **Admin console** — Manage all bookings, register floors, and place desks/rooms on floor-plan images.
+- **Secure by design** — JWT + HttpOnly refresh cookies, RBAC, overlap detection, audit logging.
+
+## Screenshots
+
+| Dashboard & floor plan | Filters & recommendations |
+|---|---|
+| ![Dashboard](docs/assets/app/02-dashboard-floorplan.png) | ![Recommendations](docs/assets/app/03-filters-recommendations.png) |
+
+| Space details & booking | My bookings |
+|---|---|
+| ![Space details](docs/assets/app/04-space-details.png) | ![My bookings](docs/assets/app/06-my-bookings.png) |
+
+| Admin console |
+|---|
+| ![Admin](docs/assets/app/07-admin-dashboard.png) |
 
 ## Architecture
 
 ```text
-┌─────────────────┐     HTTPS /api      ┌──────────────────┐
+┌─────────────────┐     HTTP /api       ┌──────────────────┐
 │  React (Vite)   │ ◄────────────────► │  FastAPI         │
 │  Floor plan UI  │   JWT + cookies    │  SQLAlchemy 2.0  │
 └────────┬────────┘                    └────────┬─────────┘
          │                                    │
          │  floorLayouts/*.json               │  PostgreSQL / SQLite
-         │  (geometry + background)           │
          ▼                                    ▼
    Space markers                      Bookings, users, audit
-   matched by layoutLocalId
 ```
 
 | Layer | Location | Notes |
 |--------|-----------|--------|
 | API | `backend/app/routers/` | Auth, spaces, bookings, recommendations, admin |
 | Domain | `backend/app/services/` | Booking conflicts, recommendations, audit |
-| UI | `frontend/src/components/` | `FloorPlan`, markers, filters, booking modal |
-| Layout data | `frontend/src/data/floorLayouts/` | Versioned JSON; `floorMeta` wires floors into demo/registry |
-| Layout tool | `frontend/src/pages/FloorPlanEditorPage.tsx` | Dev only (`import.meta.env.DEV`) |
+| UI | `frontend/src/components/` | FloorPlan, markers, filters, timeline, ICS parser |
+| Layout data | `frontend/src/data/floorLayouts/` | Versioned JSON wired via `floorMeta` |
+| Infra | `infra/terraform/` | VPC, RDS, ECS Fargate, ALB, ECR |
 
 ## Tech stack
 
-- **Backend:** Python 3.12, FastAPI, SQLAlchemy 2.0, Pydantic, Alembic, Pytest  
-- **Frontend:** React, TypeScript, Vite, Tailwind CSS, Vitest  
-- **Data:** SQLite (local), PostgreSQL (Docker / production)  
-- **Ops:** Docker Compose, GitHub Actions (CI + ECR image publish)
-
-## Repository layout
-
-```text
-backend/
-  app/routers/     HTTP routes
-  app/services/    Business logic
-  app/models.py    Entities
-  alembic/         Migrations
-frontend/
-  src/components/  Floor plan, booking UI
-  src/pages/       Dashboard, login, bookings, admin
-  src/data/        Demo seed data + floor layout JSON
-  public/floorplans/  Static floor images (optional)
-.github/workflows/ ci.yml, deploy-aws.yml
-```
+| Area | Technologies |
+|------|-------------|
+| Backend | Python 3.12, FastAPI, SQLAlchemy 2.0, Pydantic, Alembic, Pytest |
+| Frontend | React, TypeScript, Vite, Tailwind CSS, Vitest, Playwright |
+| Data | SQLite (local), PostgreSQL (Docker / AWS RDS) |
+| Ops | Docker Compose, GitHub Actions, Terraform, AWS ECS Fargate |
 
 ## Getting started
 
@@ -67,24 +77,21 @@ cd backend
 python3 -m venv .venv && source .venv/bin/activate
 pip install -r requirements.txt
 cp .env.example .env
-python -m app.seed
+PYTHONPATH=. python -m app.seed
 uvicorn app.main:app --reload
 ```
 
-OpenAPI docs: `http://localhost:8000/docs`
-
-**Demo accounts:** see [docs/DEMO_CREDENTIALS.md](docs/DEMO_CREDENTIALS.md).
+API docs: http://localhost:8000/docs
 
 ### Frontend
 
 ```bash
 cd frontend
 npm install
-cp .env.example .env
 npm run dev
 ```
 
-App: `http://localhost:5173` · Dev floor editor: `http://localhost:5173/dev/floor-editor`
+App: http://localhost:5173
 
 ### Docker (full stack)
 
@@ -95,46 +102,44 @@ docker compose up --build
 | Service | URL |
 |---------|-----|
 | Frontend | http://localhost:3000 |
-| Backend | http://localhost:8000 |
+| Backend | http://localhost:8000/api |
 | PostgreSQL | localhost:5432 |
-
-## Configuration
-
-**Backend** (`backend/.env`): `DATABASE_URL`, `JWT_SECRET_KEY`, `CORS_ORIGINS`, `COOKIE_SECURE`, token expiry settings — see `backend/.env.example`.
-
-**Frontend** (`frontend/.env`): `VITE_API_URL` — API base URL (e.g. `http://localhost:8000/api`).
-
-**Floor layouts:** Drop a `meetmi-floor-layout-v1` JSON under `frontend/src/data/floorLayouts/` with `floorMeta` and `placements`; spaces are generated in demo data when `floorMeta.id` matches. Placement `localId` maps to `Space.layoutLocalId` for drawing on the image.
-
-**Production DB:** Tables are created on startup for local demos; use Alembic for controlled schema changes:
-
-```bash
-cd backend && alembic upgrade head
-```
-
-`python -m app.seed` creates demo users, Manchester/London layout-matched spaces, and 220 bookings across the next 60 days. The deploy workflow runs this seed after ECS rolls out so the public API has working logins immediately.
-
-## Security model
-
-- Parameterized ORM access, Pydantic validation at API boundaries, role-based admin routes, booking ownership checks.
-- Access tokens in memory; refresh tokens in HttpOnly cookies.
-- Booking writes use transactional overlap detection (`start < other.end AND end > other.start`).
-- Sensitive actions and auth failures are written to `AuditLog`.
 
 ## Testing
 
 ```bash
-cd backend && pytest
+cd backend && PYTHONPATH=. pytest
 cd frontend && npm test
 cd frontend && npm run test:e2e
 ```
 
-CI (`.github/workflows/ci.yml`) runs backend, frontend, and Playwright E2E suites on pull requests and `main`.
+CI (`.github/workflows/ci.yml`) runs backend unit tests, frontend Vitest, and Playwright E2E on every push to `main`.
 
 ## Deployment
 
-Container images are built from `backend/Dockerfile` and `frontend/Dockerfile`. Pushes to `main` trigger `.github/workflows/deploy-aws.yml`, which publishes `meetmi-backend` and `meetmi-frontend` to Amazon ECR (repositories are created automatically when the IAM role allows it).
+Pushes to `main` trigger `.github/workflows/deploy-aws.yml`:
 
-Typical AWS layout: ECR images → App Runner or ECS Fargate, RDS PostgreSQL, Secrets Manager for `JWT_SECRET_KEY` and database credentials, optional S3/CloudFront for static assets. Configure runtime env on the backend service (`DATABASE_URL`, `CORS_ORIGINS`, `COOKIE_SECURE=true`).
+1. Build and push `meetmi-backend` / `meetmi-frontend` images to Amazon ECR (linux/amd64).
+2. Force-new-deploy both ECS Fargate services on cluster `meetmi-cluster`.
+3. Seed the RDS database (`python -m app.seed`) with demo users, layout-matched spaces, desk bookings, and meeting-room time slots.
+4. Verify `/api/health` and demo login.
 
-**Running on AWS:** ECR stores images; **ECS + RDS** runs the app with a stable URL and persistent Postgres. **First-time setup (recommended):** [infra/terraform/README.md](infra/terraform/README.md) (`terraform apply` once). Manual alternative: [docs/aws-ecs-console-setup.md](docs/aws-ecs-console-setup.md). After that, CI pushes images, rolls ECS services (`AWS_ECS_CLUSTER`, `AWS_ECS_SERVICE_BACKEND`, `AWS_ECS_SERVICE_FRONTEND`), seeds RDS, and verifies the public API. Set `VITE_API_URL=http://<alb-dns>/api` and `PUBLIC_APP_URL=http://<alb-dns>` for production verification. Optional variable: `SKIP_FRONTEND_DEPLOY=true`.
+First-time AWS setup: [infra/terraform/README.md](infra/terraform/README.md)
+
+## Security
+
+- Parameterized ORM queries, Pydantic validation, role-based admin routes, booking ownership checks.
+- Access tokens in memory; refresh tokens in HttpOnly cookies.
+- Transactional overlap detection on every booking write.
+- Audit log for sensitive actions and auth failures.
+
+See [docs/Task2-Secure-Application.md](docs/Task2-Secure-Application.md) for the full secure-development write-up.
+
+## Documentation
+
+| Document | Description |
+|----------|-------------|
+| [docs/DEMO_CREDENTIALS.md](docs/DEMO_CREDENTIALS.md) | Demo user accounts |
+| [docs/Task2-Secure-Application.md](docs/Task2-Secure-Application.md) | Secure application development |
+| [docs/Task3-Supporting-Artefacts.md](docs/Task3-Supporting-Artefacts.md) | DevOps artefacts and CI/CD pipeline |
+| [infra/terraform/README.md](infra/terraform/README.md) | AWS infrastructure setup |

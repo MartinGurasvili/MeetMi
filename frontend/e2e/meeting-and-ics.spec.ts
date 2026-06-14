@@ -44,6 +44,9 @@ test.describe('Meeting room slots and ICS recommender', () => {
   });
 
   test('uploads an ICS file and quick-books a recommended room', async ({ page }) => {
+    await expect(page.locator('.dashboard-recommendations .ics-file-input')).toHaveCount(1);
+    await expect(page.locator('.ics-recommender')).toHaveCount(0);
+
     await page.locator('.ics-file-input').setInputFiles(SMALL_ICS);
     await expect(page.locator('.ics-recommender-summary')).toContainText(/Aurora Core AI team/i);
 
