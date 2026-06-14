@@ -117,7 +117,6 @@ Pushes to `main` trigger `.github/workflows/deploy-aws.yml`:
 3. Seed the RDS database (`python -m app.seed`) with demo users, layout-matched spaces, desk bookings, and meeting-room time slots.
 4. Verify `/api/health` and demo login.
 
-First-time AWS setup: [infra/terraform/README.md](infra/terraform/README.md)
 
 ## Security
 
@@ -125,14 +124,3 @@ First-time AWS setup: [infra/terraform/README.md](infra/terraform/README.md)
 - Access tokens in memory; refresh tokens in HttpOnly cookies.
 - Transactional overlap detection on every booking write.
 - Audit log for sensitive actions and auth failures.
-
-See [docs/Task2-Secure-Application.md](docs/Task2-Secure-Application.md) for the full secure-development write-up.
-
-## Documentation
-
-| Document | Description |
-|----------|-------------|
-| [docs/DEMO_CREDENTIALS.md](docs/DEMO_CREDENTIALS.md) | Demo user accounts |
-| [docs/Task2-Secure-Application.md](docs/Task2-Secure-Application.md) | Secure application development |
-| [docs/Task3-Supporting-Artefacts.md](docs/Task3-Supporting-Artefacts.md) | DevOps artefacts and CI/CD pipeline |
-| [infra/terraform/README.md](infra/terraform/README.md) | AWS infrastructure setup |
